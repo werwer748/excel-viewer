@@ -1,3 +1,5 @@
+import org.jetbrains.intellij.platform.gradle.TestFrameworkType
+
 plugins {
     id("org.jetbrains.kotlin.jvm") version "2.4.20"
     id("org.jetbrains.intellij.platform") version "2.19.0"
@@ -21,8 +23,27 @@ val fallbackIdeVersion = "2026.2.3"
 
 dependencies {
     intellijPlatform {
-        if (localIdePath.isNotEmpty()) local(file(localIdePath)) else create("IC", fallbackIdeVersion)
+        // localIdePath 가 없을 때 받아올 플랫폼. 고를 때 함정이 둘 있고 둘 다 CI 가 잡아냈다:
+        //
+        //  1. **IC(IDEA Community)는 안 된다.** 2025.3(253)부터 배포가 중단돼
+        //     `idea:ideaIC:<버전>` 이 존재하지 않는다.
+        //  2. **intellijIdea(=Ultimate)도 안 된다.** 받아지기는 하지만 BasePlatformTestCase
+        //     9개가 전부 깨진다 — `com.intellij.modules.ultimate` 의 확장을 만들다
+        //     "Cannot find suitable constructor for class Z.Z.Z.Z.Z" 로 죽는다.
+        //
+        // 이 플러그인은 com.intellij.modules.platform 밖을 쓰지 않으므로 어느 IDE로 빌드해도
+        // 된다. 로컬 localIdePath 가 대개 WebStorm 이므로 여기도 WebStorm 으로 맞춘다 —
+        // 로컬과 CI 가 다른 플랫폼이면 한쪽에서만 깨지는 테스트가 생긴다.
+        // 다섯 IDE 호환성은 이 자리가 아니라 verifyPlugin 이 본다.
+        if (localIdePath.isNotEmpty()) local(file(localIdePath)) else webstorm(fallbackIdeVersion)
         pluginVerifier()
+        testFramework(TestFrameworkType.Platform)
+
+        // 원본 미리보기용 JCEF. WebStorm 은 이걸 번들 *플러그인*으로 싣는다
+        // (plugins/jcef-plugin/lib/modules/intellij.platform.ui.jcef.jar).
+        // plugin.xml 에서는 optional 의존이라, 없는 환경에서는 미리보기 모드만 빠지고
+        // 플러그인 자체는 정상 로드된다.
+        bundledPlugin("com.intellij.modules.jcef")
     }
     // jsoup 1.22.1은 IDE가 lib/intellij.libraries.jsoup.jar 로 부트 클래스패스에 이미 싣고 있다.
     // 같은 버전을 compileOnly로만 참조해 플러그인에는 넣지 않는다 (버전 충돌 방지).
@@ -34,6 +55,12 @@ dependencies {
     testImplementation("org.jsoup:jsoup:1.22.1")
     testImplementation("org.junit.jupiter:junit-jupiter:5.11.4")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+
+    // 파일 타입 판별은 순수 단위 테스트로 잡히지 않는다 - FileTypeRegistry 가 필요하다.
+    // 내가 <fileType extensions="xls;..."> 로 내 fileTypeDetector 를 가려버린 버그가
+    // 정확히 이 사각지대에 있었다. BasePlatformTestCase 로 그 자리를 덮는다.
+    testImplementation("junit:junit:4.13.2")            // UsefulTestCase 는 JUnit3 계열이다
+    testRuntimeOnly("org.junit.vintage:junit-vintage-engine:5.11.4")
 }
 
 tasks.test {
@@ -76,3 +103,4 @@ intellijPlatform {
         }
     }
 }
+

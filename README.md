@@ -35,49 +35,71 @@ Apache POI로 워크북을 열려는 플러그인은 헤더 검증에서 예외�
 
 진짜 BIFF `.xls`는 의도적으로 지원하지 않는다. Apache POI를 넣으면 `xmlbeans`·`log4j-api`·`SparseBitSet` 등 약 7MB가 따라오고 IDE 클래스로더와 충돌 여지가 생긴다. (참고: DataGrip도 POI를 플러그인 클래스로더 **밖** Grape 캐시에 격리해 쓴다.)
 
-## 설계 메모
+## 사용법
 
-- **자동 선점 확장자는 `xls xlsx xlsm xltx xltm` 만.** `csv`/`tsv`는 번들 `grid-core-plugin`의 `csv-data-editor`가 이미 담당하고 편집까지 지원하므로 건드리지 않는다. `html`도 제외. 그런 파일은 우클릭 → **표로 열기**로 명시 진입한다.
-- **`fileTypeDetector` 가 필수다.** 어떤 번들 플러그인도 `xls`/`xlsx`를 등록하지 않아 `UnknownFileType`이 된다. 그러면 텍스트 에디터가 붙지 않아 `PLACE_BEFORE_DEFAULT_EDITOR`를 써도 Text 탭이 아예 생기지 않는다. 내용이 텍스트면 `PlainTextFileType`을 돌려줘 원본 Text 탭을 살린다.
-- **헤더 행은 `<thead>` 기준.** "`<th>`를 포함한 선두 행" 규칙은 틀린다 — 요약내역 표 본문 첫 행에 `<th>이번달</th>`(rowspan=3, 행 방향 헤더)가 있어 헤더를 2행으로 오인한다.
-- **colspan/rowspan은 점유 맵으로 펼친다.** 상세내역 표가 `rowspan="2"` + `colspan="2"` 2단 헤더라 이게 없으면 컬럼 정렬이 깨진다.
-- **셀 타입은 텍스트에서 추론한다.** 이 파일에는 `mso-number-format`·`x:num`이 하나도 없다. `x:num`이 있으면 그쪽을 우선한다.
-- **jsoup은 번들하지 않는다.** IDE가 1.22.1을 부트 클래스패스에 이미 싣고 있어 `compileOnly`로만 참조한다.
-- 모든 실패는 `UnsupportedSpreadsheetException` / `SpreadsheetParseException`으로 모여 패널에 한국어 설명으로 표시된다. `ProcessCanceledException`과 `CancellationException`은 절대 삼키지 않는다.
+### 여는 방법
 
-## 함정 메모
+- **`.xls` `.xlsx` `.xlsm` `.xltx` `.xltm`** — 프로젝트 뷰에서 더블클릭하면 바로 표로 열린다.
+- **그 외 파일** (`.csv` `.tsv` `.html`, 확장자 없는 파일 등) — 우클릭 → **표로 열기**. 프로젝트 뷰와 에디터 탭 우클릭 메뉴 양쪽에 있다.
 
-실제로 물렸던 것들. 파서 테스트나 Plugin Verifier로는 잡히지 않는 종류라 적어둔다.
+`csv`/`tsv`를 자동으로 가져가지 않는 이유: IDE 번들 플러그인이 이미 그 형식을 담당하고 **편집까지** 지원한다. 읽기 전용인 이쪽이 끼어들면 기능이 줄어든다.
 
-- **`JBLoadingPanel` 을 직접 비우면 안 된다.** `add()` 는 재정의해 내부 content 패널로 위임하지만 `removeAll()` 은 재정의하지 않는다. `removeAll()` 을 부르면 화면에 붙어 있는 `LoadingDecorator` 컴포넌트가 떨어져 나가고, 이후 `add()` 한 내용은 분리된 패널로 들어가 **화면이 빈 채로 아무 오류도 안 난다**. 전용 content 패널(`SheetPanel.content`)을 하나 넣고 그 자식만 교체한다.
-- **텍스트 내용에 `PlainTextFileType` 을 주면 번들 grid 플러그인의 `csv-data-editor` 가 가로챈다.** 두 번째 탭이 "Data" 가 되어 원본을 보기 어려워진다. 내용에 맞는 타입(`FileTypeRegistry.findFileTypeByName("HTML")`)을 주고, 없는 IDE에서만 PlainText로 떨어뜨린다.
-- **`FileTypeDetector` 결과는 VFS에 캐시된다.** 탐지기를 고친 뒤에는 샌드박스의 `system_runIde` 를 지워야 재판별된다. (`getVersion()` 은 262에서 deprecated + 제거 예정이라 쓰지 않는다.)
-- **`EditorNotificationPanel(Status)` 단일 인자 생성자는 없다.** `(Color?, Status)` 를 쓴다.
-- **`TableSpeedSearch` 생성자는 deprecated.** `TableSpeedSearch.installOn(table)` 을 쓴다.
-- **플러그인 description 은 라틴 문자로 시작해야 한다.** 한국어로 시작하면 Plugin Verifier가 구조 오류로 반려한다 (Marketplace 규칙). 로컬 설치에는 영향 없지만 `verifyPlugin` 이 막힌다.
+### 화면
 
-## 빌드
+- 시트가 여러 개면 위쪽 **시트 탭**으로 전환한다.
+- 왼쪽 **행 머리글**에 원본 행 번호가 붙는다 — 엑셀 원본과 행을 맞춰 볼 수 있다.
+- 표에 포커스를 두고 **그냥 타이핑하면 검색**된다.
+- 병합 셀(colspan/rowspan)은 펼쳐서 표시하므로 2단 헤더도 컬럼이 어긋나지 않는다.
+- 파일이 너무 커서 일부만 읽었으면 **배너로 알린다** (읽은 행 수 / 전체 행 수).
+- 읽을 수 없는 파일은 예외를 던지지 않고 **사유와 다음에 할 일을 설명하는 패널**을 보여준다.
 
-clone 후 바로 빌드된다. 플랫폼 262 클래스는 **Java 25 바이트코드(major 69)** 라 JDK 25가 필요한데, 없으면 foojay 리졸버가 받아 온다. 플랫폼 의존성도 지정이 없으면 원격 아티팩트를 받는다.
+### 표 탭 툴바
 
-**이미 JetBrains IDE가 설치돼 있다면** `~/.gradle/gradle.properties`에 아래를 넣어 두면 ~1GB 다운로드가 사라진다. 번들 JBR이 `javac 25`를 포함한 완전한 JDK이므로 JDK 설치도 필요 없다.
+| 버튼 | 하는 일 |
+|---|---|
+| 다시 읽기 | 파일을 다시 읽는다 |
+| 첫 행을 머리글로 | 토글. 머리글 행을 컬럼 이름으로 올린다 |
+| 시트 전체 복사 | **탭 구분 텍스트(TSV)** 로 클립보드에 복사 — 엑셀·구글 시트에 그대로 붙여넣을 수 있다 |
+| 내보내기… | 파일로 저장. **CSV / JSON / Markdown** |
 
-```properties
-org.gradle.java.installations.paths=/경로/WebStorm.app/Contents/jbr/Contents/Home
-localIdePath=/경로/WebStorm.app
-verifyIdePaths=/경로/WebStorm.app,/Applications/IntelliJ IDEA.app
-```
+내보내기는 CSV · JSON · Markdown 세 가지, 클립보드 복사는 TSV다.
 
-```bash
-./scripts/check.sh      # lint -> build -> test 한 번에 (커밋 전 훅이 부르는 것과 같다)
-./gradlew test          # 파서 테스트 21개 (전부 합성 픽스처 기반)
-./gradlew buildPlugin   # -> build/distributions/excel-viewer-1.0.0.zip
-./gradlew verifyPlugin  # WebStorm / IDEA / PyCharm / DataGrip 호환성 검증
-./gradlew runIde --args="/열어볼/디렉터리"                  # 샌드박스 IDE
-```
+### 원본 탭
+
+아래쪽 **원본** 탭에서 파일을 있는 그대로 볼 수 있다. HTML 위장 `.xls` 는 파일 타입이 바이너리라
+IDE 기본 텍스트 에디터가 붙지 않기 때문에, 이 플러그인이 직접 읽어 보여준다.
+표 탭과 **같은 판별 결과**를 쓰므로 두 탭이 같은 파일을 다르게 해석하는 일은 없다.
+
+| 모드 | 보여주는 것 |
+|---|---|
+| 미리보기 | HTML을 렌더해서 본다. 스크립트는 제거하고 이미지는 차단한다(출처를 알 수 없는 파일이라 외부 요청을 막는다). 배너로 무엇을 막았는지 알린다 |
+| 소스 | 원본 텍스트 그대로. 진짜 `.xls`(OLE2) · `.xlsb` 처럼 바이너리면 `hexdump -C` 배치의 hex 덤프로 앞부분을 보여준다 — 매직바이트를 눈으로 확인할 수 있다 |
+| 내부 파트 | XLSX/XLSB 같은 ZIP 안의 XML 파트 목록과 내용 |
+
+툴바는 **다시 읽기**와 **원본 전체 복사** 두 개다. 내장 브라우저(JCEF)가 없는 환경에서는 미리보기
+모드가 목록에서 아예 빠지고 소스 모드로 떨어진다 — 눌러도 안 되는 버튼은 두지 않는다.
+
+**읽기 전용이다.** 셀을 고치거나 저장하는 기능은 없다.
 
 ## 설치
 
 `Settings → Plugins → ⚙ → Install Plugin from Disk…` 에서 `build/distributions/excel-viewer-1.0.0.zip` 선택.
 
 `com.intellij.modules.platform` 만 의존하고 `until-build`가 없어 WebStorm·IDEA·PyCharm·CLion·DataGrip에 같은 ZIP을 그대로 설치할 수 있다. `since-build=262` — Java 25 바이트코드는 JBR 21로 도는 구버전 IDE에서 로드되지 않는다.
+
+## 배포
+
+JetBrains IDE 플러그인으로 빌드해 **ZIP 한 개로 배포**한다. 플랫폼 모듈만 의존하므로 WebStorm · IntelliJ IDEA · PyCharm · CLion · DataGrip에 같은 파일을 설치한다.
+
+```bash
+./gradlew buildPlugin    # -> build/distributions/excel-viewer-1.0.0.zip
+./gradlew verifyPlugin   # 다섯 IDE 호환성 검증
+```
+
+현재 배포 경로는 **ZIP 직접 설치**다. JetBrains Marketplace 게시는 아직 준비되지 않았다 — 서명·게시 설정과 플러그인 로고가 없고, 남은 항목은 [TODO.md](TODO.md)에 정리해 두었다.
+
+라이선스는 MIT, 저장소는 <https://github.com/werwer748/excel-viewer>.
+
+## 개발
+
+빌드 · 설계 결정 · TDD 훅은 [CLAUDE.md](CLAUDE.md), 남은 일은 [TODO.md](TODO.md).
