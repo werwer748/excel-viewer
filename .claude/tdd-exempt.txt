@@ -1,0 +1,21 @@
+# 헤드리스 테스트가 불가능한 경로와 그 사유.
+# 형식:  <글로브>   <사유>       (src/main/kotlin/dev/hugo/sheetview/ 기준 상대경로)
+#
+# 사유 없이 경로만 추가하는 것은 이 파일의 목적을 없애는 것이다. 사유가 빈 줄은 무효다.
+# 면제는 "테스트하지 않아도 된다"가 아니라 "샌드박스에서 사람이 확인한다"는 뜻이다.
+
+editor/SheetPanel.kt            Swing 조립. JBLoadingPanel/JBTable 렌더는 IDE 없이 단정할 수 없다.
+editor/SourcePanel.kt           위와 같음. 모드 전환은 샌드박스에서 확인한다.
+editor/SheetFileEditor.kt       FileEditor 생명주기에 Project 와 Disposer 가 필요하다.
+editor/SourceFileEditor.kt      위와 같음.
+editor/AsyncFileEditor.kt       위와 같음. 코루틴 취소 규약은 샌드박스에서 탭을 닫아 확인한다.
+editor/TextViewer.kt            EditorFactory 는 애플리케이션 초기화를 요구한다.
+editor/SheetTableModel.kt       TableModel 이벤트는 JTable 없이 의미가 없다. Sheet 로직은 SheetData 에서 테스트한다.
+preview/JcefHtmlPreview.kt      JCEF 는 Chromium 프로세스를 띄운다. 헤드리스에서 불가.
+filetype/SpreadsheetFileType.kt IconLoader 가 애플리케이션을 요구한다.
+
+# 면제하지 않는 것 (일부러 여기 없다):
+#   editor/SourceEditorProvider.kt      accept() 는 확장자만 보는 순수 판정이다.
+#   filetype/SpreadsheetFileTypeDetector.kt
+#       내가 <fileType extensions=...> 로 이 탐지기를 가려버린 자리다. 반드시 테스트가 있어야 한다.
+#   filetype/TextFileTypes.kt           레지스트리 조회 + 폴백 규칙. 테스트 가능하다.

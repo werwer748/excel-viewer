@@ -1,0 +1,83 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<html xmlns:o="urn:schemas-microsoft-com:office:office"
+      xmlns:x="urn:schemas-microsoft-com:office:excel"
+      xmlns="http://www.w3.org/TR/REC-html40">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<title>이용대금명세서</title>
+</head>
+<body>
+
+<h2 class="x-tit2">■ 요약내역</h2>
+<table border="1">
+  <thead>
+    <tr><th>구분</th><th>이용대금</th><th>결제일</th></tr>
+  </thead>
+  <tbody>
+    <tr><th rowspan="3">이번달</th><td>123,450원</td><td>2026.03.10</td></tr>
+    <tr><td>0원</td><td>2026.04.10</td></tr>
+    <tr><td>0원</td><td>2026.05.10</td></tr>
+  </tbody>
+</table>
+
+<h2 class="x-tit2">■ 상세내역</h2>
+<table border="1">
+  <thead>
+    <tr>
+      <th rowspan="2">이용일</th>
+      <th rowspan="2">가맹점명</th>
+      <th rowspan="2">이용총액</th>
+      <th colspan="2">이번 달 입금하실 금액</th>
+    </tr>
+    <tr>
+      <th>원금</th>
+      <th>수수료</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr><td>2026.03.11</td><td>샘플가맹점</td><td>123,450원</td><td>123,450원</td><td>0원</td></tr>
+    <tr><td>2026.03.12</td><td>테스트마트</td><td>7,800원</td><td>7,800원</td><td>0원</td></tr>
+  </tbody>
+</table>
+
+<p>통신요금은 별도 청구되며 아래 표는 이월된 금액만 표시합니다. 이 안내문은 표 바로 앞에
+오지만 제목이 아니므로 시트 이름이 되어서는 안 됩니다.</p>
+<h2 class="x-tit2">■ 통신요금 이월내역</h2>
+<table border="1">
+  <thead>
+    <tr><th>항목</th><th>금액</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>이월 통신요금</td><td>0원</td></tr>
+  </tbody>
+</table>
+
+<h2 class="x-tit2">■ 해외이용금액 상세내역</h2>
+<table border="1">
+  <thead>
+    <tr><th>이용일자</th><th>가맹점</th><th>이용금액</th><th>청구금액</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>2026.03.14</td><td>SAMPLE SHOP</td><td>10,000</td><td>10,000</td></tr>
+    <tr><td>2026.03.15</td><td>EXAMPLE STORE</td><td>98,760</td><td>98,760</td></tr>
+  </tbody>
+</table>
+
+</body>
+</html>

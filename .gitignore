@@ -1,0 +1,21 @@
+# Gradle
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+
+# IntelliJ Platform Gradle Plugin 캐시 (IDE 아티팩트, 수백 MB)
+.intellijPlatform/
+
+# Kotlin
+.kotlin/
+
+# IDE 프로젝트 설정 (사람마다 다르다)
+.idea/
+*.iml
+
+# macOS
+.DS_Store
+
+# 개인 환경 경로는 ~/.gradle/gradle.properties 에 둔다.
+# 저장소의 gradle.properties 에는 빈 값과 설명만 있다.
+local.properties

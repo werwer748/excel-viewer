@@ -1,0 +1,11 @@
+<?xml version="1.0"?>
+<?mso-application progid="Excel.Sheet"?>
+<Workbook xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
+ <Worksheet ss:Name="명세">
+  <Table>
+   <Row><Cell><Data ss:Type="String">항목</Data></Cell><Cell ss:MergeAcross="1"><Data ss:Type="String">금액</Data></Cell></Row>
+   <Row><Cell><Data ss:Type="String">커피</Data></Cell><Cell><Data ss:Type="Number">1500</Data></Cell><Cell><Data ss:Type="Number">10</Data></Cell></Row>
+   <Row ss:Index="5"><Cell><Data ss:Type="String">건너뛴행</Data></Cell></Row>
+  </Table>
+ </Worksheet>
+</Workbook>
