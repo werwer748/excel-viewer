@@ -23,7 +23,11 @@ val fallbackIdeVersion = "2026.2.3"
 
 dependencies {
     intellijPlatform {
-        if (localIdePath.isNotEmpty()) local(file(localIdePath)) else create("IC", fallbackIdeVersion)
+        // localIdePath 가 없으면 원격 아티팩트를 받는다. **IC(IDEA Community)를 쓰면 안 된다** —
+        // 2025.3(253)부터 배포가 중단돼서 `idea:ideaIC:<버전>` 이 존재하지 않는다.
+        // 로컬에는 localIdePath 가 있어 이 경로를 타지 않으므로 오래 눈치채지 못했고, CI 가
+        // 처음 잡아냈다. 플러그인이 직접 제안하는 대체가 intellijIdea(version) 다.
+        if (localIdePath.isNotEmpty()) local(file(localIdePath)) else intellijIdea(fallbackIdeVersion)
         pluginVerifier()
         testFramework(TestFrameworkType.Platform)
 
