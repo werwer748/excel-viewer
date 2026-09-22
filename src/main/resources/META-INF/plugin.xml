@@ -11,6 +11,15 @@
     -->
     <depends>com.intellij.modules.platform</depends>
 
+    <!--
+      원본 탭의 "미리보기"는 내장 Chromium(JCEF)으로 렌더한다. JCEF 는 플랫폼에 들어 있지 않고
+      번들 *플러그인* `com.intellij.modules.jcef` 로 딸려 오며, 그 디스크립터는
+      com.intellij.modules.os.mac / arch.arm64 에 의존한다 — 즉 **환경에 따라 없을 수 있다**.
+      필수 의존으로 걸면 없는 환경에서 플러그인 전체가 로드되지 않으므로 optional 로 둔다.
+      없으면 미리보기 모드만 빠지고 소스 탭으로 폴백한다.
+    -->
+    <depends optional="true" config-file="sheetview-jcef.xml">com.intellij.modules.jcef</depends>
+
     <description><![CDATA[
       <p>Read spreadsheets as a table inside the IDE, detecting the format from file
          <em>content</em> rather than from the file extension. Read-only.</p>
@@ -27,28 +36,45 @@
       <p>읽을 수 없는 파일은 예외를 던지지 않고 사유를 설명하는 패널을 보여줍니다.</p>
     ]]></description>
 
+    <!--
+      구현은 sheetview-jcef.xml 이 JCEF 가 있을 때만 등록한다. 서비스가 아니라 확장 포인트인
+      이유: 등록되지 않은 서비스를 getService 로 찾으면 플랫폼이 오류를 로그에 남기는데,
+      여기서는 "없는 것이 정상"이라 오류 로그가 방해만 된다.
+    -->
+    <extensionPoints>
+        <extensionPoint qualifiedName="dev.hugo.sheetview.htmlPreviewFactory"
+                        interface="dev.hugo.sheetview.preview.HtmlPreviewFactory"
+                        dynamic="true"/>
+    </extensionPoints>
+
     <extensions defaultExtensionNs="com.intellij">
         <!--
-          타입은 등록하되 확장자는 **일부러 매핑하지 않는다**.
-          확장자로 매핑하면 이름 기반 매칭이 이겨서 아래 fileTypeDetector 가 무시된다.
-          (그러면 HTML 위장 .xls 도 바이너리로 잡혀 원본을 볼 탭이 생기지 않는다.)
-          이 타입은 탐지기가 "내용이 진짜 바이너리 워크북일 때만" 부여한다.
+          **확장자를 반드시 매핑한다.** 한때 "내용 기반 fileTypeDetector 를 살리려고"
+          extensions 를 뺐는데, 그건 틀린 판단이었다. 플랫폼 테스트로 측정한 사실:
+
+            extensions 없음 -> .xls 파일 타입 = "Data File" (binary)
+                               = com.intellij.grid.scripting.impl.DataLoaderManager$DataFileType
+                               이 타입은 FileTypeIdentifiableByVirtualFile 이라
+                               **내용 기반 탐지기보다 먼저** 평가된다. 즉 탐지기는 영원히 안 불린다.
+            extensions 있음 -> .xls 파일 타입 = "Spreadsheet" (내 타입이 이긴다)
+
+          그래서 탐지기로는 이길 수 없다. 확장자를 놓으면 파일 타입이 번들 grid 플러그인에
+          넘어가고, grid 가 없는 IDE(IDEA/PyCharm)에서는 UNKNOWN 이 된다. 어느 쪽도 좋지 않다.
+
+          따라서 HTML 위장 .xls 의 원본은 플랫폼 텍스트 탭에 기댈 수 없다
+          (어느 경우든 파일 타입이 binary 라 텍스트 에디터가 붙지 않는다).
+          원본은 이 플러그인의 "원본" 탭(SourceEditorProvider)이 직접 보여준다.
+
+          회귀 테스트: FileTypeAndTabsTest — extensions 를 지우면 즉시 깨진다.
         -->
         <fileType name="Spreadsheet"
                   implementationClass="dev.hugo.sheetview.filetype.SpreadsheetFileType"
-                  fieldName="INSTANCE"/>
+                  fieldName="INSTANCE"
+                  extensions="xls;xlsx;xlsm;xltx;xltm"/>
 
-        <!--
-          파일 타입을 내용으로 정한다. 확장자 매칭이 없으므로 xls/xlsx 는
-          UnknownFileType 상태로 여기까지 내려오고, 그때 탐지기가 호출된다.
-            - 내용이 HTML  -> HTML 타입   (두 번째 탭에서 원본을 구문 강조로 본다)
-            - 내용이 XML   -> XML 타입
-            - 내용이 ZIP/OLE2 -> Spreadsheet 타입 (바이너리, 표 탭만)
-          판별 결과는 VFS에 캐시되므로 다시 열 때는 비용이 없다.
-        -->
-        <fileTypeDetector implementation="dev.hugo.sheetview.filetype.SpreadsheetFileTypeDetector"/>
-
+        <!-- 등록 순서가 탭 순서다. 표가 먼저 선택되어야 한다. -->
         <fileEditorProvider implementation="dev.hugo.sheetview.editor.SheetEditorProvider"/>
+        <fileEditorProvider implementation="dev.hugo.sheetview.editor.SourceEditorProvider"/>
 
         <notificationGroup id="Spreadsheet Viewer" displayType="BALLOON"/>
     </extensions>

@@ -1,3 +1,5 @@
+import org.jetbrains.intellij.platform.gradle.TestFrameworkType
+
 plugins {
     id("org.jetbrains.kotlin.jvm") version "2.4.20"
     id("org.jetbrains.intellij.platform") version "2.19.0"
@@ -23,6 +25,13 @@ dependencies {
     intellijPlatform {
         if (localIdePath.isNotEmpty()) local(file(localIdePath)) else create("IC", fallbackIdeVersion)
         pluginVerifier()
+        testFramework(TestFrameworkType.Platform)
+
+        // 원본 미리보기용 JCEF. WebStorm 은 이걸 번들 *플러그인*으로 싣는다
+        // (plugins/jcef-plugin/lib/modules/intellij.platform.ui.jcef.jar).
+        // plugin.xml 에서는 optional 의존이라, 없는 환경에서는 미리보기 모드만 빠지고
+        // 플러그인 자체는 정상 로드된다.
+        bundledPlugin("com.intellij.modules.jcef")
     }
     // jsoup 1.22.1은 IDE가 lib/intellij.libraries.jsoup.jar 로 부트 클래스패스에 이미 싣고 있다.
     // 같은 버전을 compileOnly로만 참조해 플러그인에는 넣지 않는다 (버전 충돌 방지).
@@ -34,6 +43,12 @@ dependencies {
     testImplementation("org.jsoup:jsoup:1.22.1")
     testImplementation("org.junit.jupiter:junit-jupiter:5.11.4")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+
+    // 파일 타입 판별은 순수 단위 테스트로 잡히지 않는다 - FileTypeRegistry 가 필요하다.
+    // 내가 <fileType extensions="xls;..."> 로 내 fileTypeDetector 를 가려버린 버그가
+    // 정확히 이 사각지대에 있었다. BasePlatformTestCase 로 그 자리를 덮는다.
+    testImplementation("junit:junit:4.13.2")            // UsefulTestCase 는 JUnit3 계열이다
+    testRuntimeOnly("org.junit.vintage:junit-vintage-engine:5.11.4")
 }
 
 tasks.test {
@@ -76,3 +91,4 @@ intellijPlatform {
         }
     }
 }
+

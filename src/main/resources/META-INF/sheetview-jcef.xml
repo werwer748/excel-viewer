@@ -1,0 +1,9 @@
+<!--
+  com.intellij.modules.jcef 가 있을 때만 로드되는 선택적 디스크립터.
+  여기서만 JCEF 를 참조하는 구현을 등록한다 - 메인 모듈은 JCEF 클래스를 전혀 모른다.
+-->
+<idea-plugin>
+    <extensions defaultExtensionNs="dev.hugo.sheetview">
+        <htmlPreviewFactory implementation="dev.hugo.sheetview.preview.JcefHtmlPreviewFactory"/>
+    </extensions>
+</idea-plugin>
