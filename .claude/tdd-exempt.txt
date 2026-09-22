@@ -12,10 +12,12 @@ editor/AsyncFileEditor.kt       위와 같음. 코루틴 취소 규약은 샌드
 editor/TextViewer.kt            EditorFactory 는 애플리케이션 초기화를 요구한다.
 editor/SheetTableModel.kt       TableModel 이벤트는 JTable 없이 의미가 없다. Sheet 로직은 SheetData 에서 테스트한다.
 preview/JcefHtmlPreview.kt      JCEF 는 Chromium 프로세스를 띄운다. 헤드리스에서 불가.
+preview/HtmlPreview.kt          인터페이스 선언뿐이라 검증할 동작이 없다. 구현이 규약을 지키는지는 샌드박스에서 본다.
 filetype/SpreadsheetFileType.kt IconLoader 가 애플리케이션을 요구한다.
 
 # 면제하지 않는 것 (일부러 여기 없다):
 #   editor/SourceEditorProvider.kt      accept() 는 확장자만 보는 순수 판정이다.
-#   filetype/SpreadsheetFileTypeDetector.kt
-#       내가 <fileType extensions=...> 로 이 탐지기를 가려버린 자리다. 반드시 테스트가 있어야 한다.
 #   filetype/TextFileTypes.kt           레지스트리 조회 + 폴백 규칙. 테스트 가능하다.
+#
+# 파일 타입 판별 자체는 FileTypeAndTabsTest(BasePlatformTestCase)가 덮는다.
+# <fileType extensions=...> 로 내용 기반 탐지기를 가려버린 버그가 정확히 이 사각지대에 있었다.

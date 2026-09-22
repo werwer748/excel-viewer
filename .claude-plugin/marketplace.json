@@ -1,0 +1,13 @@
+{
+  "name": "sheetview",
+  "description": "Spreadsheet Viewer 저장소에서 쓰는 작업 도구 — TDD 게이트, 코드 리뷰, 샌드박스, 작업 사이클",
+  "owner": {
+    "name": "hugo"
+  },
+  "plugins": [
+    {
+      "name": "sheetview-kit",
+      "source": "./plugins/sheetview-kit"
+    }
+  ]
+}

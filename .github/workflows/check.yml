@@ -1,0 +1,59 @@
+# 게이트를 이 머신 밖으로 내보낸다.
+#
+# 지금까지 모든 검사는 "작성자 머신의 Claude 세션 안"에만 있었다. 훅은 플러그인을 설치한
+# 사람에게만 걸리고, 사람이 터미널에서 직접 친 커밋은 아무것도 거치지 않는다.
+# clone 한 다른 사람에게는 게이트가 0개였다. 여기가 그 유일한 재현 지점이다.
+name: check
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+# 같은 브랜치에 연속으로 밀면 앞의 실행은 취소한다. 빌드가 길어서 쌓이면 의미가 없다.
+concurrency:
+  group: check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  hooks:
+    # 훅 테스트가 먼저다. 몇 초면 끝나고, 훅이 깨졌다면 나머지를 돌릴 이유가 없다.
+    # "훅이 틀리면 전체 작업이 막히거나, 더 나쁘게는 조용히 통과한다."
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: 훅 자체 테스트
+        run: sh plugins/sheetview-kit/scripts/test-hooks.sh
+
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # 플랫폼 262 클래스가 Java 25 바이트코드(major 69)다.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "25"
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      # localIdePath 가 비어 있으므로 fallbackIdeVersion 의 원격 아티팩트를 받는다(~1GB).
+      # setup-gradle 이 캐시하므로 두 번째부터는 빠르다.
+      - name: lint · build · test · 래칫
+        run: ./scripts/check.sh
+
+  verify:
+    # 다섯 IDE 호환성 검증. 몇 분 걸리므로 커밋 게이트(check.sh)에는 넣지 않고 여기서 돌린다.
+    # plugin.xml · build.gradle.kts · 플랫폼 API 를 건드렸을 때 특히 중요하다.
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "25"
+      - uses: gradle/actions/setup-gradle@v4
+      - name: verifyPlugin
+        run: ./gradlew verifyPlugin --console=plain

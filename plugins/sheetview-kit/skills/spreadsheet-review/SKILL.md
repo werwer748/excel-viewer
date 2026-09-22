@@ -25,7 +25,8 @@ description: Spreadsheet Viewer(JetBrains 플러그인, Kotlin) 코드를 리뷰
 
 | 영역 | 파일 |
 |---|---|
-| 포맷 판별 | `format/SpreadsheetSniffer.kt`, `filetype/SpreadsheetFileTypeDetector.kt` |
+| 포맷 판별 | `format/SpreadsheetSniffer.kt` |
+| 파일 타입·탭 | `filetype/SpreadsheetFileType.kt`, `filetype/TextFileTypes.kt`, `resources/META-INF/plugin.xml` |
 | 진입점·크기 가드 | `format/SpreadsheetReaders.kt` |
 | 계약(상한·취소·예외) | `format/SpreadsheetReader.kt` |
 | 파서 | `format/XlsxReader.kt`, `ExcelHtmlReader.kt`, `SpreadsheetMlReader.kt`, `DelimitedReader.kt` |
@@ -51,12 +52,11 @@ description: Spreadsheet Viewer(JetBrains 플러그인, Kotlin) 코드를 리뷰
 
 ### 2. 변경 범위를 파악한다
 
-**이 저장소는 git 저장소가 아니다.** `git diff`를 기대하지 마라. 대신:
-
 - 호출한 쪽이 "무엇을 고쳤는지" 알려줬으면 그 파일과 **그 함수를 호출하는 쪽까지** 읽는다.
-- 모르면 최근 수정 파일을 기준으로 잡는다:
-  `find src -name '*.kt' -newer build.gradle.kts` 또는 `ls -lt` 로 최근 것부터.
-- 그래도 모르겠으면 전체를 보되, 위험도 순서(파서 → 에디터 → 나머지)로 본다. 2,600줄 남짓이라 가능하다.
+- 모르면 git으로 잡는다: `git status --short` 로 미커밋 변경, `git diff` 로 내용.
+- 그래도 모르겠으면 전체를 보되, 위험도 순서(파서 → 에디터 → 나머지)로 본다. 전체를 볼 수 있는 규모다.
+- **진행 중인 기능이 테스트를 먼저 올려 둬서 이미 red 일 수 있다.** 실패를 지적하기 전에
+  그것이 요청받은 변경 때문인지 확인하고, 아니면 `TODO.md`의 진행 중 항목을 근거로 그 사실만 적는다.
 
 리더 한 곳을 고쳤으면 **나머지 세 리더의 같은 자리도 본다.** 네 리더가 같은 계약
 (`ReadLimits`·`checkCancelled`·직사각형 그리드)을 각자 구현하고 있어서, 한쪽만 고치면 조용히 갈라진다.
@@ -68,16 +68,19 @@ description: Spreadsheet Viewer(JetBrains 플러그인, Kotlin) 코드를 리뷰
 
 **① 포맷 판별 — 확장자를 믿는 순간이 있는가**
 
-- 새 분기를 `SpreadsheetSniffer`에 넣었다면 `SpreadsheetReaders.readerFor`와
-  `SpreadsheetFileTypeDetector.detect` **세 곳이 모두** 갱신됐는가.
-  enum이 늘면 `when`이 컴파일 에러로 알려주지만, 기존 enum의 의미를 바꾼 경우는 조용히 어긋난다.
+- 새 분기를 `SpreadsheetSniffer`에 넣었다면 `SpreadsheetReaders.readerFor` **두 곳이 모두**
+  갱신됐는가. enum이 늘면 `when`이 컴파일 에러로 알려주지만, 기존 enum의 의미를 바꾼 경우는
+  조용히 어긋난다. (내용 기반 `fileTypeDetector`는 쓰지 않는다 — 확장자 매핑이 이긴다는 것을
+  측정으로 확인했다. 근거는 CLAUDE.md '파일 타입과 탭'.)
 - 스니퍼는 **앞 8KB만** 본다. 파일 전체가 있다고 가정한 판별 로직(예: 닫는 태그 확인, 전체 길이 검사)은 틀린다.
 - 선행 공백/CRLF 건너뛰기와 BOM 처리가 살아 있는가. 대상 파일은 `<html`이 오프셋 0에 없다 —
   이게 기존 플러그인들이 죽는 바로 그 지점이다.
 - 판별을 **더 관대하게** 만드는 변경이 특히 위험하다. CSV로 떨어지는 조건이 넓어지면
   깨진 바이너리가 CSV로 열려 쓰레기 표가 나온다. "알 수 없음"이 잘못된 표보다 낫다.
-- `FileTypeDetector`는 VFS 인덱싱 경로에서 불린다. 여기서 무거운 일(전체 파싱, 파일 재열기,
-  다른 탐지기 재귀 호출)을 하면 IDE 전체가 느려진다.
+- `fileTypeDetector`를 **다시 도입하려는 변경이면** 그 자체를 지적한다 — `extensions` 매핑이
+  탐지기보다 먼저 평가되므로 불리지 않는다(`FileTypeAndTabsTest`가 회귀를 잡는다). 도입이
+  불가피하다면 탐지기는 VFS 인덱싱 경로에서 불리므로 무거운 일(전체 파싱, 파일 재열기,
+  다른 탐지기 재귀 호출)을 하면 IDE 전체가 느려진다는 점까지 확인한다.
 
 **② 자원 상한과 취소 — 악의적이지 않아도 큰 파일은 온다**
 
@@ -170,7 +173,7 @@ description: Spreadsheet Viewer(JetBrains 플러그인, Kotlin) 코드를 리뷰
 ```markdown
 ## 리뷰: <대상>
 
-**자동 검사**: `./gradlew test` ✓ 20개 통과   ← 돌렸다면 결과를 먼저
+**자동 검사**: `./gradlew test` ✓ N개 통과   ← 돌렸다면 결과를 먼저 (N은 실제 출력값)
 
 ### 🔴 고치고 커밋해야 함
 1. **<한 줄 요약>** — `format/XlsxReader.kt:249`
@@ -196,7 +199,7 @@ description: Spreadsheet Viewer(JetBrains 플러그인, Kotlin) 코드를 리뷰
 
 **이 코드의 주석은 대부분 실측 기록이다.** "mso-number-format이 한 곳도 없었다",
 "CRLF 34바이트가 앞에 붙어 있다", "`<th>` 규칙은 틀린다" 같은 주석은 취향이 아니라
-실제 파일을 열어보고 남긴 결론이다. 이상해 보이는 코드를 지적하기 전에 **주석과 README를 먼저 읽어라.**
+실제 파일을 열어보고 남긴 결론이다. 이상해 보이는 코드를 지적하기 전에 **주석과 CLAUDE.md를 먼저 읽어라.**
 거기 이유가 적혀 있는데도 지적하면 리뷰 전체의 신뢰가 떨어진다.
 
 지적 건수를 채우려 하지 마라. 문제가 없으면 없다고 말하는 게 훨씬 쓸모 있다.
