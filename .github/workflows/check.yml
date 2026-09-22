@@ -43,6 +43,18 @@ jobs:
       - name: lint · build · test · 래칫
         run: ./scripts/check.sh
 
+      # check.sh 는 --quiet 로 돌리므로 실패해도 어느 테스트가 왜 깨졌는지 로그에 남지 않는다.
+      # 리포트를 올려 두면 다음 사람이 CI 를 다시 돌리지 않고도 원인을 본다.
+      - name: 테스트 리포트 (실패 시)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-report
+          path: |
+            build/reports/tests/test/
+            build/test-results/test/
+          retention-days: 7
+
   verify:
     # 다섯 IDE 호환성 검증. 몇 분 걸리므로 커밋 게이트(check.sh)에는 넣지 않고 여기서 돌린다.
     # plugin.xml · build.gradle.kts · 플랫폼 API 를 건드렸을 때 특히 중요하다.

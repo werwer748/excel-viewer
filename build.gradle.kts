@@ -23,11 +23,19 @@ val fallbackIdeVersion = "2026.2.3"
 
 dependencies {
     intellijPlatform {
-        // localIdePath 가 없으면 원격 아티팩트를 받는다. **IC(IDEA Community)를 쓰면 안 된다** —
-        // 2025.3(253)부터 배포가 중단돼서 `idea:ideaIC:<버전>` 이 존재하지 않는다.
-        // 로컬에는 localIdePath 가 있어 이 경로를 타지 않으므로 오래 눈치채지 못했고, CI 가
-        // 처음 잡아냈다. 플러그인이 직접 제안하는 대체가 intellijIdea(version) 다.
-        if (localIdePath.isNotEmpty()) local(file(localIdePath)) else intellijIdea(fallbackIdeVersion)
+        // localIdePath 가 없을 때 받아올 플랫폼. 고를 때 함정이 둘 있고 둘 다 CI 가 잡아냈다:
+        //
+        //  1. **IC(IDEA Community)는 안 된다.** 2025.3(253)부터 배포가 중단돼
+        //     `idea:ideaIC:<버전>` 이 존재하지 않는다.
+        //  2. **intellijIdea(=Ultimate)도 안 된다.** 받아지기는 하지만 BasePlatformTestCase
+        //     9개가 전부 깨진다 — `com.intellij.modules.ultimate` 의 확장을 만들다
+        //     "Cannot find suitable constructor for class Z.Z.Z.Z.Z" 로 죽는다.
+        //
+        // 이 플러그인은 com.intellij.modules.platform 밖을 쓰지 않으므로 어느 IDE로 빌드해도
+        // 된다. 로컬 localIdePath 가 대개 WebStorm 이므로 여기도 WebStorm 으로 맞춘다 —
+        // 로컬과 CI 가 다른 플랫폼이면 한쪽에서만 깨지는 테스트가 생긴다.
+        // 다섯 IDE 호환성은 이 자리가 아니라 verifyPlugin 이 본다.
+        if (localIdePath.isNotEmpty()) local(file(localIdePath)) else webstorm(fallbackIdeVersion)
         pluginVerifier()
         testFramework(TestFrameworkType.Platform)
 
