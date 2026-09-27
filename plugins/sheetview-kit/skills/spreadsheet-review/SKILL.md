@@ -21,18 +21,20 @@ description: Spreadsheet Viewer(JetBrains 플러그인, Kotlin) 코드를 리뷰
 
 ## 코드 지도
 
-어디를 봐야 하는지 매번 찾지 않도록:
+어디를 봐야 하는지 매번 찾지 않도록. **규칙** 열은 그 영역의 "되돌리면 안 되는 결정"과 측정 근거다 (`.claude/rules/` 기준).
+서브에이전트에서 규칙이 자동으로 붙는다는 보장은 없으므로, 리뷰할 영역의 규칙 파일은 **직접 Read 한다.**
 
-| 영역 | 파일 |
-|---|---|
-| 포맷 판별 | `format/SpreadsheetSniffer.kt` |
-| 파일 타입·탭 | `filetype/SpreadsheetFileType.kt`, `filetype/TextFileTypes.kt`, `resources/META-INF/plugin.xml` |
-| 진입점·크기 가드 | `format/SpreadsheetReaders.kt` |
-| 계약(상한·취소·예외) | `format/SpreadsheetReader.kt` |
-| 파서 | `format/XlsxReader.kt`, `ExcelHtmlReader.kt`, `SpreadsheetMlReader.kt`, `DelimitedReader.kt` |
-| 표 모델 | `model/SheetData.kt`, `format/CellTypeInference.kt` |
-| IDE 통합 | `editor/SheetFileEditor.kt`, `SheetPanel.kt`, `SheetEditorProvider.kt`, `actions/`, `resources/META-INF/plugin.xml` |
-| 빌드·호환성 | `build.gradle.kts`, `gradle.properties` |
+| 영역 | 파일 | 규칙 |
+|---|---|---|
+| 포맷 판별 | `format/SpreadsheetSniffer.kt` | `filetype-and-tabs.md`, `errors-and-limits.md` |
+| 파일 타입·탭 | `filetype/SpreadsheetFileType.kt`, `filetype/TextFileTypes.kt`, `resources/META-INF/plugin.xml` | `filetype-and-tabs.md` |
+| 진입점·크기 가드 | `format/SpreadsheetReaders.kt` | `errors-and-limits.md` |
+| 계약(상한·취소·예외) | `format/SpreadsheetReader.kt` | `errors-and-limits.md` |
+| 파서 | `format/XlsxReader.kt`, `ExcelHtmlReader.kt`, `SpreadsheetMlReader.kt`, `DelimitedReader.kt` | `table-parsing.md`, `errors-and-limits.md` |
+| 표 모델 | `model/SheetData.kt`, `format/CellTypeInference.kt` | `table-parsing.md` |
+| IDE 통합 | `editor/SheetFileEditor.kt`, `SheetPanel.kt`, `SheetEditorProvider.kt`, `actions/`, `resources/META-INF/plugin.xml` | `swing-editor.md`, `filetype-and-tabs.md` |
+| 원본 탭·미리보기 | `editor/Source*.kt`, `source/`, `preview/`, `resources/META-INF/sheetview-jcef.xml` | `source-tab-light.md`, `jcef-preview.md` |
+| 빌드·호환성 | `build.gradle.kts`, `gradle.properties` | `build-and-deps.md` |
 
 ## 순서
 
@@ -71,7 +73,7 @@ description: Spreadsheet Viewer(JetBrains 플러그인, Kotlin) 코드를 리뷰
 - 새 분기를 `SpreadsheetSniffer`에 넣었다면 `SpreadsheetReaders.readerFor` **두 곳이 모두**
   갱신됐는가. enum이 늘면 `when`이 컴파일 에러로 알려주지만, 기존 enum의 의미를 바꾼 경우는
   조용히 어긋난다. (내용 기반 `fileTypeDetector`는 쓰지 않는다 — 확장자 매핑이 이긴다는 것을
-  측정으로 확인했다. 근거는 CLAUDE.md '파일 타입과 탭'.)
+  측정으로 확인했다. 근거는 `.claude/rules/filetype-and-tabs.md`.)
 - 스니퍼는 **앞 8KB만** 본다. 파일 전체가 있다고 가정한 판별 로직(예: 닫는 태그 확인, 전체 길이 검사)은 틀린다.
 - 선행 공백/CRLF 건너뛰기와 BOM 처리가 살아 있는가. 대상 파일은 `<html`이 오프셋 0에 없다 —
   이게 기존 플러그인들이 죽는 바로 그 지점이다.
@@ -199,7 +201,7 @@ description: Spreadsheet Viewer(JetBrains 플러그인, Kotlin) 코드를 리뷰
 
 **이 코드의 주석은 대부분 실측 기록이다.** "mso-number-format이 한 곳도 없었다",
 "CRLF 34바이트가 앞에 붙어 있다", "`<th>` 규칙은 틀린다" 같은 주석은 취향이 아니라
-실제 파일을 열어보고 남긴 결론이다. 이상해 보이는 코드를 지적하기 전에 **주석과 CLAUDE.md를 먼저 읽어라.**
+실제 파일을 열어보고 남긴 결론이다. 이상해 보이는 코드를 지적하기 전에 **주석과 해당 영역의 `.claude/rules/` 규칙을 먼저 읽어라.**
 거기 이유가 적혀 있는데도 지적하면 리뷰 전체의 신뢰가 떨어진다.
 
 지적 건수를 채우려 하지 마라. 문제가 없으면 없다고 말하는 게 훨씬 쓸모 있다.

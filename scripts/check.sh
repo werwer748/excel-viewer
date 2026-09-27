@@ -13,14 +13,14 @@ fail() { printf '\n%s\n' "$1" >&2; exit 1; }
 
 # ---------------------------------------------------------------- 1. lint
 # 이 프로젝트에는 ktlint/detekt가 없다. 대신 (a) 컴파일러 경고를 0으로 유지하고,
-# (b) CLAUDE.md 에 근거가 적힌 불변식을 기계로 지킨다. 전부 컴파일러가 잡아주지 않는 것들이다.
+# (b) CLAUDE.md 와 .claude/rules/ 에 근거가 적힌 불변식을 기계로 지킨다. 전부 컴파일러가 잡아주지 않는 것들이다.
 printf 'lint  ... '
 
 violations=""
 add() { violations="$violations
   - $1"; }
 
-# Apache POI는 의도적으로 넣지 않는다 (~7MB + IDE 클래스로더 충돌). CLAUDE.md '되돌리면 안 되는 결정' 참고.
+# Apache POI는 의도적으로 넣지 않는다 (~7MB + IDE 클래스로더 충돌). .claude/rules/build-and-deps.md 참고.
 grep -qE 'org\.apache\.poi' build.gradle.kts 2>/dev/null &&
   add "build.gradle.kts 에 Apache POI 의존성. 진짜 BIFF .xls는 안내 패널로 처리하기로 한 결정을 되돌리는 변경이다."
 
@@ -68,6 +68,33 @@ except Exception:
 " 2>/dev/null)
   [ -n "$dup" ] &&
     add "marketplace.json 엔트리가 plugin.json 과 필드를 중복 선언한다 ($dup). 메타데이터는 plugin.json 한 곳에만."
+fi
+
+# 영역 규칙(.claude/rules)은 paths 글로브에 맞는 파일을 Read 할 때만 컨텍스트에 붙는다.
+# 패키지를 옮기면 글로브가 아무것도 가리키지 않게 되고 규칙은 조용히 영영 안 붙는다 —
+# 훅 마커(SHEETVIEW_SRC_ROOT)와 같은 실패 모양이다. 반대로 paths 가 없는 규칙은 매 세션
+# 즉시 로드되어 CLAUDE.md 와 갈라진다. 중괄호 글로브는 python glob 이 펼치지 못해 막는다.
+if [ -d .claude/rules ]; then
+  rules=$(python3 -c '
+import glob, pathlib, re
+out = []
+for f in sorted(pathlib.Path(".claude/rules").rglob("*.md")):
+    front = re.match(r"---\n(.*?)\n---\n", f.read_text(encoding="utf-8"), re.S)
+    block = re.search(r"^paths:[ \t]*\n((?:[ \t]+-.*(?:\n|$))+)", front.group(1) + "\n", re.M) if front else None
+    globs = re.findall(r"^[ \t]+-[ \t]*[\"\x27]?(.*?)[\"\x27]?[ \t]*$", block.group(1), re.M) if block else []
+    if not globs:
+        out.append(f"{f}: frontmatter 에 paths 목록이 없다. 매 세션 즉시 로드되므로 그런 내용은 CLAUDE.md 에 둔다.")
+    for g in globs:
+        if "{" in g:
+            out.append(f"{f}: 중괄호 글로브 {g} — lint 가 검사할 수 없다. 항목을 나눠 적는다.")
+        elif not glob.glob(g, recursive=True):
+            out.append(f"{f}: {g} 에 맞는 파일이 없다. 이 규칙은 영영 붙지 않는다.")
+print("\n".join(out))
+' 2>/dev/null | grep . | sed 's/^/  - 영역 규칙: /')
+  if [ -n "$rules" ]; then
+    violations="$violations
+$rules"
+  fi
 fi
 
 if [ -n "$violations" ]; then
