@@ -39,7 +39,23 @@ printf 'branch=%s\nround=0\nmax_rounds=3\nreview=pending\nverify=pending\nharnes
 
 ### ③ 리뷰
 
-`sheet-reviewer` 에이전트에게 맡긴다. 에이전트는 백그라운드로 돈다 — **결과를 기다리며 턴을 끝내도 된다.** 리뷰어·러너가 도는 동안에는 `cycle-stop.sh` 가 막지 않는다. 끝나면 `cycle-review.sh` 가 보고서의 `### 🔴` 섹션을 세어 상태에 기록한다:
+`sheet-reviewer` 에이전트에게 맡긴다. 리뷰 시간은 리뷰어의 턴 수로 정해지므로, 리뷰어가 다시 찾지 않도록 **브리핑을 넘긴다**:
+
+```
+리뷰 대상: <git 범위 — "미커밋 diff" 또는 "A..B">
+바뀐 것: <파일별 한 줄>
+자동 검사: <방금 돌린 check.sh 또는 gradlew test 의 결과 줄 그대로 | 없음>
+규칙: <spreadsheet-review 코드 지도에서 고른 .claude/rules/ 파일>
+특히 볼 것: <선택>
+이전 지적: <재리뷰일 때만 — 번호와 한 줄 요약>
+```
+
+- 자동 검사 결과가 있으면 리뷰어는 테스트를 다시 돌리지 않는다. `plugin.xml`·`build.gradle.kts`·플랫폼 API 를 건드렸으면 `verifyPlugin` 은 이쪽에서 돌린다(리뷰어는 돌리지 않는다).
+- **2라운드부터는 이전 보고의 🔴·🟡 를 `이전 지적` 에 넘긴다.** 리뷰어가 델타 모드로 해소 여부와 수정 hunk 만 본다.
+- **리뷰어는 한 번에 하나만 띄운다.** `cycle-review.sh` 는 마지막에 끝난 리뷰어의 판정으로 상태를 덮어쓴다. 병렬로 띄우면 🔴 판정이 뒤에 온 clean 에 묻힌다. 영역별로 쪼개지 않는 이유는 `.claude/rules/harness.md` 의 '리뷰어 속도'에 있다.
+- 리뷰어는 백그라운드로 돈다 — **결과를 기다리며 턴을 끝내도 된다.** 리뷰어·러너가 도는 동안에는 `cycle-stop.sh` 가 막지 않는다.
+
+끝나면 `cycle-review.sh` 가 보고서의 `### 🔴` 섹션을 세어 상태에 기록한다:
 
 - 항목이 있으면 `review=red:N`, 라운드가 1 오른다
 - 없으면 `review=clean`
