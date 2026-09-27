@@ -8,7 +8,6 @@
 # 형식: src/main/kotlin/dev/hugo/sheetview/ 기준 상대경로 한 줄에 하나.
 
 actions/OpenAsSpreadsheetAction.kt
-export/ExportFormats.kt
 format/CellTypeInference.kt
 format/DelimitedReader.kt
 format/SpreadsheetMlReader.kt

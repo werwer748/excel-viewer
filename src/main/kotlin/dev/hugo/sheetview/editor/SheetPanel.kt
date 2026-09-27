@@ -304,7 +304,11 @@ class SheetPanel(
         }
     }
 
-    private inner class ExportAction : AnAction("내보내기…", "CSV / JSON / Markdown 으로 저장합니다", AllIcons.ToolbarDecorator.Export) {
+    private inner class ExportAction : AnAction(
+        "내보내기…",
+        ExportFormat.entries.joinToString(" / ") { it.label } + " 으로 저장합니다",
+        AllIcons.ToolbarDecorator.Export,
+    ) {
         override fun getActionUpdateThread() = ActionUpdateThread.EDT
         override fun update(e: AnActionEvent) {
             e.presentation.isEnabled = currentSheet() != null
