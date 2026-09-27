@@ -168,7 +168,11 @@ check_one() {
     return 0
   fi
 
-  dir=${inner%%/*}
+  # 소스 루트 바로 아래 파일이면 하위 폴더가 없다. ${inner%%/*} 가 파일 이름을 그대로 돌려준다.
+  case "$inner" in
+    */*) dir=${inner%%/*}; where="$dir/" ;;
+    *)   dir="";           where="패키지 루트" ;;
+  esac
   {
     echo "TDD: 본체보다 테스트가 먼저입니다."
     echo "  만들려는 것:   $rel"
@@ -183,7 +187,7 @@ check_one() {
         echo "그 파일을 고치는 것은 사람 승인을 거칩니다 — 게이트 자신이기 때문입니다."
         ;;
       *)
-        echo "이 경로($dir/)는 순수 로직이라 헤드리스 테스트가 가능합니다. 면제 대상이 아닙니다."
+        echo "이 경로($where)는 순수 로직이라 헤드리스 테스트가 가능합니다. 면제 대상이 아닙니다."
         ;;
     esac
     echo
@@ -212,6 +216,16 @@ IFS=$saved_ifs
 
 # 게이트 자신을 건드리는 중이면 사람에게 올린다.
 if [ -n "$harness_hit" ]; then
+  # 사이클 중이면 그 사실을 상태에 남긴다. 예전에는 모델이 직접 sed -i 로 적었다 — 적지 않으면
+  # 그만이었다. 사이클 상태 파일 자체는 게이트가 아니라 사이클의 일부라 세지 않는다.
+  # (PreToolUse 라서 사람이 거절한 수정도 기록된다. 경고 쪽으로 틀리는 것은 괜찮다.)
+  for _h in $harness_hit; do
+    [ "$_h" = ".claude/.cycle-state" ] && continue
+    if sheetview_cycle_active "$PROJECT_DIR"; then
+      sheetview_cycle_set "$PROJECT_DIR" harness_touched yes
+    fi
+    break
+  done
   printf '%s' "$harness_hit" | python3 -c '
 import json, sys
 files = sys.stdin.read().split()

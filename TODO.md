@@ -53,15 +53,6 @@
 
 - [ ] **면제 글로브가 인용 없이 `case` 에 들어간다** — `.claude/tdd-exempt.txt` 에 `*  <사유>` 한 줄이면 전 경로가 면제된다. 지금은 그 파일 수정에 `ask` 가 걸려 사람이 한 번 보게 되지만, 글로브 자체를 검증하지는 않는다.
 
-- [ ] **`SubagentStop` 매처가 플러그인 에이전트 이름과 맞지 않아 사이클 훅이 돌지 않는다** — TSV 사이클에서 처음 드러났다. `hooks.json` 의 매처는 `"sheet-reviewer"` / `"sandbox-runner"` 인데, 플러그인에 실린 에이전트의 실제 타입은 `sheetview-kit:sheet-reviewer` / `sheetview-kit:sandbox-runner` 다(`subagents/agent-*.meta.json` 의 `agentType` 으로 확인). 리뷰어가 🔴 없이 끝났는데 `review=pending` 이 그대로였다 — 파싱에 실패했다면 `unknown` 이 남았을 것이므로 **훅이 아예 불리지 않았다.** 사이클 상태는 실사용에서 한 번도 갱신된 적이 없었을 가능성이 크다.
-  `test-hooks.sh` 는 `agent_type: "sheet-reviewer"` 합성 payload 로 스크립트를 직접 부르므로 이 배선을 볼 수 없다. 후보: 매처를 비우고(모든 서브에이전트) 스크립트 안에서 `agent_type` 이 `sheet-reviewer` 로 **끝나는지** 본다 — 매처 문자열의 정확 일치·정규식 의미를 추측하지 않아도 된다. 테스트에는 `sheetview-kit:` 접두가 붙은 payload 를 추가한다.
-
-- [ ] **`cycle-stop.sh` 의 탈출구가 비동기 대기만으로 소진된다** — TSV 사이클에서 처음 드러났다. `sheet-reviewer` · `sandbox-runner` 는 **백그라운드로** 돌고, 결과를 기다리려면 턴을 끝내야 한다. 그때마다 `Stop` 이 걸려 `stop_blocked` 가 오르는데, 이 값은 **되돌아가지 않는다**. 리뷰 대기 한 번 + 검증 대기 한 번이면 한도(3)에 거의 닿고, 닿으면 탈출구 2 가 발동해 리뷰·검증 없이도 세션이 끝난다. 한도에 닿은 뒤에는 멈출 때마다 `verify=halted` 로 **덮어쓰므로** 나중에 `verify=clean` 이 기록돼도 지워진다.
-  탈출구는 "세션이 갇히는 것"을 막으려던 것인데, 실제로 소진시키는 것은 갇힘이 아니라 정상적인 대기다. 후보: 리뷰·검증 에이전트가 **돌고 있는 동안**은 되돌리지 않기(시작 표시를 상태에 남기고 `SubagentStop` 이 지운다), 또는 `review`/`verify` 가 바뀔 때 `stop_blocked` 를 0 으로 되돌리기. 한도 도달 시 `verify` 를 덮어쓰지 말고 별도 키(`halted=yes`)에 남기기.
-
-- [ ] **플러그인 에이전트에서는 frontmatter `hooks:` 가 무시돼 `agent-guard.sh` 가 걸리지 않는다** — `sheet-reviewer`·`sandbox-runner` 의 `hooks: PreToolUse(Bash)` 가 여기에 해당한다. Claude Code 2.1.283 바이너리에서 `Plugin agent file … sets hooks, which is ignored for plugin agents. Use .claude/agents/ for this level of control.` 문자열을 확인했다(`permissionMode` · `mcpServers` 도 같은 목록에 있다). 따라서 에이전트 본문과 플러그인 README 의 "쓰기 명령이 거절된다"는 서술은 지금 사실이 아니다. 두 에이전트의 `tools:` 에서 Edit·Write 를 뺀 것만 실제로 효력이 있고, Bash 로 `sed -i` 를 쓰는 길은 열려 있다.
-  고치는 방향은 플러그인 `hooks.json` 의 `PreToolUse(Bash)` 에서 서브에이전트 호출을 가려내 `agent-guard.sh` 로 넘기는 것이다. 먼저 서브에이전트 안의 툴 호출 payload 에 에이전트 타입이 실리는지 확인해야 한다. 실리지 않으면 이 방향은 쓸 수 없다. 훅을 고치면 README·에이전트 본문의 서술도 같이 고친다.
-
 ## 샌드박스 자동 검증: 실측으로 닫힌 길
 
 같은 시도를 반복하지 않도록 남긴다. 셋 다 **직접 돌려보고** 확인했다.
@@ -73,7 +64,7 @@
 
 그래서 `sandbox-verify` 는 "프로세스 생존(= 플러그인 로드 성공) + 구간 로그 예외"까지만 본다. 보이는 것의 검증은 사람이 한다.
 
-- [ ] **사이클을 실제로 한 바퀴 돌려본다** — 훅·스킬·에이전트는 전부 단위로 검증했지만(`test-hooks.sh` 107 케이스), **처음부터 끝까지 이어서 돌려본 적은 없다.** 단위가 다 맞아도 이어붙인 흐름이 맞는다는 보장은 없다.
+- [ ] **사이클을 실제로 한 바퀴 돌려본다** — 훅·스킬·에이전트는 전부 단위로 검증했지만(`test-hooks.sh`), **처음부터 끝까지 이어서 돌려본 적은 없다.** 단위가 다 맞아도 이어붙인 흐름이 맞는다는 보장은 없다.
   대상은 **TSV 내보내기**가 좋다 — 작고, 순수 로직이고, 테스트가 먼저 필요해 TDD 게이트를 정확히 탄다. 확인할 것:
   1. `feature-cycle` 스킬이 실제로 트리거되는가 (description 이 맞는가)
   2. `tdd-guard` 가 구현을 막고, 테스트를 먼저 쓰면 풀리는가
@@ -88,6 +79,8 @@
   4. 되돌리기는 체감된다. 다만 백그라운드 리뷰를 기다리는 것만으로 한도 3 이 소진돼 `verify=halted` 가 됐다(위 탈출구 항목).
   5. **실패** — 같은 매처 문제로 `cycle-verify.sh` 도 불리지 않았다. `sandbox-runner` 가 "샌드박스 확인 통과" 판정을 냈지만 `verify` 는 탈출구가 덮어쓴 `halted` 그대로였다. 리뷰는 2라운드 모두 🔴 없이 끝났는데 `review=pending` 이 끝까지 바뀌지 않았다.
   `harness_touched=yes` 는 `tdd-uncovered` 에서 `ExportFormats.kt` 를 뺀 것(사각지대 축소) 때문이다. 면제 추가는 없었다.
+  **2026-09-27 하네스 수리** — 3·5 의 원인(매처가 `sheetview-kit:` 접두와 맞지 않음), 4 의 원인(백그라운드 대기가 탈출구를 소진, `verify=halted` 덮어쓰기), 2 의 "알 수 없다"(red 확인이 모델에게 가지 않음)를 고쳤다. 그 과정에서 `agent-guard.sh` 도 한 번도 돈 적이 없었음을 찾았다(플러그인 에이전트는 frontmatter `hooks:` 를 무시한다). 전부 헤드리스 탐침으로 실측했고 `test-hooks.sh` 가 배선을 검사한다.
+  **남은 일: 머지 뒤 다음 기능 작업에서 한 바퀴 더 돌려**, `review`·`verify` 가 실제로 기록되는지(3·5), 리뷰 대기 중에 되돌리지 않는지(4) 확인한다. 워크트리에서 고친 훅은 그 세션에 걸리지 않으므로 머지 전에는 확인할 수 없다.
   덤으로 본 것: 미커버 래칫은 테스트 파일에 클래스 **이름만 나와도** 커버로 친다. 새 테스트의 KDoc 주석이 `DelimitedReader` 를 언급하자 `check.sh` 가 "커버됐으니 목록에서 지우라"고 안내했다 — 따르면 테스트 없는 파일이 빚 목록에서 조용히 빠진다. 이번에는 주석 표현을 바꿔 피했다.
 
 - [ ] **헤드리스 테스트 확대로 면제를 줄인다** — 위가 막혔으므로 여기가 실질적인 대안이다. 조사에서 확인된 것들:

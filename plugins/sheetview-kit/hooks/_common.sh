@@ -35,6 +35,55 @@ sheetview_project_dir() {
   return 1
 }
 
+# ── Kotlin 파일의 package 선언 ────────────────────────────────────────────────
+# BRE 의 `\+` 는 GNU 확장이다. macOS(BSD) sed 는 이것을 모르고 **조용히 빈 값**을 낸다 —
+# tdd-red 가 FQCN 대신 단순 이름으로 테스트를 고르고 있었는데 아무 신호도 없었다. -E 로 쓴다.
+sheetview_kotlin_package() {   # <file>
+  sed -nE 's/^[[:space:]]*package[[:space:]]+([A-Za-z0-9_.]+).*/\1/p' "$1" 2>/dev/null | head -1
+}
+
+# ── 이 체크아웃의 프로세스 ───────────────────────────────────────────────────
+# `pgrep -f` 는 머신 전체를 본다. 체크아웃이 하나일 때는 그래도 맞았는데, 워크트리가 생기자
+# 두 방향으로 틀렸다: 본체의 샌드박스가 떠 있으면 워크트리의 커밋·red 검사가 "락 때문에"
+# 멈췄고, 워크트리에서 `sandbox-up.sh down` 을 부르면 **본체의 IDE 를 죽였다.**
+# Gradle 프로젝트 락은 디렉터리마다 따로다. 그래서 프로세스마다 주인을 가린다.
+#
+# 주인: 명령줄에 "<프로젝트>/" 가 있거나(gradlew 가 래퍼 jar 를, 샌드박스 IDE 가 config·log
+# 경로를 절대경로로 넘긴다) cwd 가 프로젝트 아래다. 단 <프로젝트>/.claude/worktrees/ 아래는
+# **남이다** — 워크트리가 본체 안에 중첩되므로 접두어만 보면 본체가 워크트리 것까지 제 것으로 센다.
+# 가릴 단서가 전혀 없으면(cwd 를 못 읽고 명령줄에 경로도 없다) 예전처럼 제 것으로 본다 —
+# 락이 걸린 줄 모르고 gradle 을 부르면 타임아웃까지 멈추기 때문이다.
+sheetview_owns() {   # <물리 경로 프로젝트> <명령줄> <cwd>
+  printf '%s\n%s\n' "$2" "$3" | awk -v p="$1/" -v w="$1/.claude/worktrees/" '
+    function strip(s,  i) {
+      while ((i = index(s, w)) > 0) s = substr(s, 1, i - 1) substr(s, i + length(w))
+      return s
+    }
+    NR == 1 { cmd = strip($0) }
+    NR == 2 { cwd = $0 }
+    END {
+      if (index(cmd, p) > 0) exit 0
+      if (cwd == "") exit 0
+      c = cwd "/"
+      exit !(index(c, p) == 1 && index(c, w) != 1)
+    }'
+}
+
+sheetview_pids() {   # <pgrep 패턴> <프로젝트> -> 이 체크아웃의 PID, 한 줄에 하나
+  # 비교는 물리 경로로 한다. lsof 와 gradlew(pwd -P) 가 물리 경로로 답한다.
+  _sv_root=$(CDPATH= cd -P -- "$2" 2>/dev/null && pwd -P) || _sv_root=$2
+  for _sv_pid in $(pgrep -f -- "$1" 2>/dev/null); do
+    _sv_cmd=$(ps -o command= -p "$_sv_pid" 2>/dev/null) || continue
+    [ -n "$_sv_cmd" ] || continue            # 그새 끝났다
+    _sv_cwd=$(lsof -a -p "$_sv_pid" -d cwd -Fn 2>/dev/null | sed -n 's/^n//p' | head -1)
+    [ -n "$_sv_cwd" ] || _sv_cwd=$(readlink "/proc/$_sv_pid/cwd" 2>/dev/null)
+    if sheetview_owns "$_sv_root" "$_sv_cmd" "$_sv_cwd"; then
+      printf '%s\n' "$_sv_pid"
+    fi
+  done
+  return 0
+}
+
 # ── 작업 사이클 상태 (.claude/.cycle-state) ───────────────────────────────────
 # cycle-review / cycle-verify / cycle-stop 이 공유하는 유일한 상태다.
 # 형식은 key=value 한 줄씩이고, 파일이 없으면 "사이클이 없다"는 뜻이다 —
@@ -63,3 +112,10 @@ sheetview_cycle_set() {   # <project_dir> <key> <value>
 }
 
 sheetview_cycle_active() { [ -f "$1/.claude/.cycle-state" ]; }
+
+# 리뷰·검증 판정이 기록됐다 = 사이클이 앞으로 갔다. cycle-stop 의 되돌리기 횟수는
+# "진전 없이 연속으로" 센 것이어야 하므로 여기서 0 으로 돌린다. 예전에는 한 번 오른 횟수가
+# 사이클 내내 쌓여, 단계마다 한 번씩 멈추기만 해도 게이트가 꺼졌다.
+sheetview_cycle_progress() {   # <project_dir>
+  sheetview_cycle_set "$1" stop_blocked 0
+}

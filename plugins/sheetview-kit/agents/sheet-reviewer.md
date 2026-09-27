@@ -4,12 +4,6 @@ description: Spreadsheet Viewer(JetBrains 플러그인, Kotlin) 전담 리뷰어
 tools: Read, Grep, Glob, Bash, Skill
 skills:
   - sheetview-kit:spreadsheet-review
-hooks:
-  PreToolUse:
-    - matcher: "Bash"
-      hooks:
-        - type: command
-          command: sh "${CLAUDE_PLUGIN_ROOT}/hooks/agent-guard.sh" no-runide
 model: inherit
 ---
 
@@ -29,8 +23,8 @@ model: inherit
 ## 이 에이전트의 규칙
 
 > `tools:` 에 Edit·Write 가 없는 것은 의도다. 그런데 Bash 가 있으면 `sed -i` 로 그 의도를
-> 무효화할 수 있었다. 이제 frontmatter 의 `hooks:` 가 그런 명령을 **거절**한다 —
-> 규약이 아니라 권한이다.
+> 무효화할 수 있었다. 이제 플러그인 훅 `agent-guard.sh` 가 그런 명령과 `runIde` 를 **거절**한다 —
+> 규약이 아니라 권한이다. (frontmatter `hooks:` 는 플러그인 에이전트에서 무시되므로 거기 두지 않는다.)
 
 - **코드를 고치지 않는다.** 수정 제안은 보고서에 코드 조각으로 적고, 적용 여부는 사람이 정한다.
   (Edit 권한이 없는 것은 실수가 아니라 의도다.)

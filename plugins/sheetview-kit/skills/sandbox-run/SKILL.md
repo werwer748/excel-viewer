@@ -28,8 +28,10 @@ description: Spreadsheet Viewer(JetBrains 플러그인)를 샌드박스 IDE에 �
 ### 0. 이미 떠 있는지부터 본다
 
 ```bash
-pgrep -f "idea.plugin.in.sandbox.mode=true"
+sh plugins/sheetview-kit/scripts/sandbox-up.sh status
 ```
+
+`pgrep -f` 를 직접 쓰지 않는다 — 머신 전체를 봐서 다른 체크아웃(워크트리)의 IDE 까지 잡는다. `status` 는 이 체크아웃의 것만 보고한다.
 
 걸리면 **새로 띄우지 않는다.** 두 번째 인스턴스는 샌드박스 config를 두고 다투고, 어차피 Gradle 락에 걸려 뜨지도 않는다. PID와 로그 경로를 보고하고 **"이미 떠 있는 걸 그대로 쓸지, 닫고 새로 띄울지"** 묻고 멈춘다.
 
@@ -87,7 +89,7 @@ git diff --stat
 ./scripts/check.sh
 ```
 
-**runIde가 뜬 뒤에는 어떤 `./gradlew` 명령도 프로젝트 락 대기로 멈춘다.** 새로 알아낸 사실이 아니다 — `sheetview-kit` 플러그인의 `hooks/tdd-red.sh` 가 `pgrep -f 'runIde'` 로 red 검사를 건너뛰는 이유가 바로 이것이다. **순서를 어기면 세션이 조용히 멈춘다.** 검사는 전부 띄우기 전에 끝낸다.
+**runIde가 뜬 뒤에는 어떤 `./gradlew` 명령도 프로젝트 락 대기로 멈춘다.** 새로 알아낸 사실이 아니다 — `sheetview-kit` 플러그인의 `hooks/tdd-red.sh` 가 이 체크아웃에 runIde 가 떠 있으면 red 검사를 건너뛰는 이유가 바로 이것이다. (락은 체크아웃마다 따로라 다른 워크트리의 IDE 는 상관없다.) **순서를 어기면 세션이 조용히 멈춘다.** 검사는 전부 띄우기 전에 끝낸다.
 
 `check.sh` 가 실패하면 **띄우지 않고** 실패를 보고한다. 단 `CLAUDE.md` 의 "테스트가 red인데 내가 고친 것과 무관해 보이면" 항목대로, 진행 중인 기능이 테스트를 먼저 올려 둔 상태일 수 있다. `TODO.md` 의 '추가할 기능'을 확인하고 그 가능성을 함께 적어 사람 판단을 구한다.
 
@@ -113,7 +115,7 @@ IDE 접두어(`WS-2026.2.3`)는 `~/.gradle/gradle.properties` 의 `localIdePath`
 기동 확인은 폴링으로 한다 (~150초까지 기다린다. `localIdePath` 가 없어 원격 IDE 아티팩트를 받아야 하면 훨씬 더 걸릴 수 있고, 그건 실패가 아니다):
 
 ```bash
-pgrep -f "idea.plugin.in.sandbox.mode=true"
+sh plugins/sheetview-kit/scripts/sandbox-up.sh status
 tail -n +$((MARK+1)) "$LOG" | grep -E "AppStarter - (IDE|PID):"
 ```
 

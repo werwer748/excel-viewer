@@ -60,14 +60,28 @@ fi
 
 [ -x "$PROJECT_DIR/gradlew" ] || exit 0
 
-# runIde 같은 다른 Gradle 빌드가 프로젝트 락을 잡고 있으면 180초를 통째로 날린다.
-# 그럴 때는 검사를 건너뛰되, 건너뛴 사실을 알린다.
-if pgrep -f 'runIde' >/dev/null 2>&1; then
-  echo "TDD: 다른 Gradle 빌드(runIde)가 돌고 있어 red 확인을 건너뛰었습니다. 직접 확인하세요." >&2
+# PostToolUse 에서 exit 0 의 stdout·stderr 는 **모델에게 가지 않는다**(트랜스크립트에만 남는다).
+# 그래서 "red 를 확인했다"·"건너뛰었다"가 전부 허공에 흘렀다 — TSV 사이클에서 "tdd-red 가
+# 돌았는지 알 수 없다"는 관찰이 여기서 나왔다. 모델이 알아야 하는 말은 additionalContext 로 넘긴다.
+tell_model() {
+  printf '%s' "$1" | python3 -c '
+import json, sys
+print(json.dumps({"hookSpecificOutput": {
+    "hookEventName": "PostToolUse",
+    "additionalContext": sys.stdin.read(),
+}}, ensure_ascii=False))
+' 2>/dev/null || printf '%s\n' "$1"
+}
+
+# runIde 가 이 체크아웃의 Gradle 프로젝트 락을 잡고 있으면 타임아웃까지 통째로 날린다.
+# 그럴 때는 검사를 건너뛰되, 건너뛴 사실을 알린다. 다른 체크아웃(워크트리)의 runIde 는
+# 락이 따로라 세지 않는다 — _common.sh 의 sheetview_pids 참고.
+if [ -n "$(sheetview_pids runIde "$PROJECT_DIR")" ]; then
+  tell_model "TDD: 이 체크아웃에서 runIde 가 돌고 있어 $rel 의 red 확인을 건너뛰었습니다 (Gradle 락). 직접 확인하세요."
   exit 0
 fi
 
-pkg=$(sed -n 's/^package[[:space:]]\+\([A-Za-z0-9_.]*\).*/\1/p' "$PROJECT_DIR/$rel" 2>/dev/null | head -1)
+pkg=$(sheetview_kotlin_package "$PROJECT_DIR/$rel")
 class=$(basename "$rel" .kt)
 if [ -n "$pkg" ]; then FQCN="$pkg.$class"; else FQCN="$class"; fi
 
@@ -110,7 +124,7 @@ if [ "$status" -ne 0 ]; then
     } >&2
     exit 2
   fi
-  echo "TDD: $FQCN RED 확인 — 이제 통과시키는 구현을 쓰세요."
+  tell_model "TDD: $FQCN RED 확인 — 이제 통과시키는 구현을 쓰세요."
   exit 0
 fi
 

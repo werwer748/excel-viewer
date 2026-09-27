@@ -5,6 +5,12 @@
 # 순전히 모델의 선의에 달려 있었다. SubagentStop 은 서브에이전트의 마지막 답변
 # (last_assistant_message)을 주므로, 그 판정을 상태로 굳힐 수 있다.
 #
+# 배선은 hooks.json 의 매처가 한다. 플러그인 에이전트의 실제 타입은
+# "sheetview-kit:sheet-reviewer" 라서, 매처가 "sheet-reviewer" 였던 동안 이 훅은 한 번도
+# 불리지 않았다. 매처는 정규식 `(^|:)sheet-reviewer$` 이고 test-hooks.sh 가 배선을 검사한다.
+# last_assistant_message 는 문서에 없지만 실측으로 온다(2.1.283, 백그라운드 에이전트 포함).
+# 안 오면 unknown 이 되고, unknown 은 통과가 아니므로 사이클이 사람을 부른다.
+#
 # 이 훅은 아무것도 막지 않는다. 기록만 한다. 막는 것은 cycle-stop.sh 의 일이다.
 set -u
 
@@ -40,6 +46,7 @@ sheetview_cycle_set "$PROJECT_DIR" review "$verdict"
 
 case "$verdict" in
   red:*)
+    sheetview_cycle_progress "$PROJECT_DIR"
     round=$(sheetview_cycle_get "$PROJECT_DIR" round 2>/dev/null || echo 0)
     case "$round" in ''|*[!0-9]*) round=0 ;; esac
     sheetview_cycle_set "$PROJECT_DIR" round "$((round + 1))"
@@ -47,9 +54,11 @@ case "$verdict" in
       "$verdict" "$((round + 1))" >&2
     ;;
   clean)
+    sheetview_cycle_progress "$PROJECT_DIR"
     printf '사이클: 리뷰에 🔴 없음. 다음은 샌드박스 검증입니다.\n' >&2
     ;;
   *)
+    # 진전으로 치지 않는다 — 형식을 못 읽는 리뷰가 되풀이되면 한도에 닿아 사람을 불러야 한다.
     printf '사이클: 리뷰 결과를 읽지 못했습니다(보고 형식 불일치). 사람이 확인해야 합니다.\n' >&2
     ;;
 esac
