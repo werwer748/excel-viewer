@@ -12,11 +12,12 @@
 set -u
 
 payload=$(cat)
-# 훅 스크립트는 <project>/.claude/hooks/ 에 있다. CLAUDE_PROJECT_DIR 이 상위 폴더를
-# 가리키는 경우가 있어 (모노레포처럼 excel-viewer 가 하위일 때) 스크립트 위치에서 직접 구한다.
+# 프로젝트 루트는 _common.sh 가 마커(gradlew + 소스 루트)로 찾는다. 스크립트 위치에서
+# 역산하지 않는다 — 이 파일은 플러그인 설치 경로에 있고 프로젝트와 무관하다.
 # 상대경로가 한 칸 어긋나면 아래 case 패턴이 전부 빗나가 훅이 조용히 무력화된다.
-PROJECT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd) || exit 0
-TEST_ROOT="src/test/kotlin"
+. "$(dirname -- "$0")/_common.sh" 2>/dev/null || exit 0
+PROJECT_DIR=$(sheetview_project_dir) || exit 0
+TEST_ROOT="$SHEETVIEW_TEST_ROOT"
 NEW_TESTS="$PROJECT_DIR/.claude/.tdd-new"
 
 target=$(printf '%s' "$payload" | python3 -c '
@@ -88,6 +89,27 @@ if [ "$status" -ne 0 ]; then
       exit 2
       ;;
   esac
+  # 여기까지 오면 gradle 이 0 이 아닌 코드로 끝났다는 것뿐이다. 그게 곧 "테스트가 실패했다"는
+  # 아니다 — 데몬 크래시·락 타임아웃·OOM·JDK 미발견도 전부 여기로 온다. 그것들을 RED 로
+  # 인정하면 **환경 고장이 곧 게이트 통과**가 된다. 실제 실패의 흔적을 확인한다.
+  results="$PROJECT_DIR/build/test-results/test"
+  failed=""
+  if [ -d "$results" ]; then
+    failed=$(grep -l 'failures="[1-9]\|errors="[1-9]' "$results"/TEST-*.xml 2>/dev/null | head -1)
+  fi
+  case "$out" in
+    *"tests completed"*|*" FAILED"*) failed="${failed:-marker}" ;;
+  esac
+  if [ -z "$failed" ]; then
+    {
+      echo "TDD: $FQCN 을 돌렸지만 실패했는지 판정할 수 없습니다."
+      echo "  gradle 이 0 이 아닌 코드로 끝났는데 테스트 실패의 흔적이 없습니다."
+      echo "  (데몬 크래시·락 대기·OOM 일 수 있습니다. 환경 문제를 RED 로 세지 않습니다.)"
+      echo
+      echo "$out" | tail -20
+    } >&2
+    exit 2
+  fi
   echo "TDD: $FQCN RED 확인 — 이제 통과시키는 구현을 쓰세요."
   exit 0
 fi

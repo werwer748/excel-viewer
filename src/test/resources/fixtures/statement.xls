@@ -21,6 +21,20 @@
 <head>
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 <title>이용대금명세서</title>
+<style>
+tr{mso-height-source:auto;mso-ruby-visibility:none}
+col{mso-width-source:userset;mso-ruby-visibility:none}
+br{mso-data-placement:same-cell}
+table{font-family: "맑은 고딕", "Malgun Gothic", "굴림", "Gulim", "Arial", sans-serif;font-size:10pt;border-collapse:collapse}
+th,td{border:0.5pt solid #808080;text-align:center;color:windowtext;word-break:break-all}
+th{background:#d9d9d9}
+.x-total th, .x-total td{background:#eee;font-weight:700}
+.x-tit1{width:100%;color:windowtext;font-size:20pt;font-weight:700;text-align:center;text-decoration:underline}
+.x-tit2{margin-bottom:0;color:windowtext;font-size:12pt;font-weight:700;text-align:left;text-decoration:underline}
+.x-right{text-align:right}
+.x-left{text-align:left}
+.x-space{border:0}
+</style>
 </head>
 <body>
 
@@ -51,8 +65,9 @@
     </tr>
   </thead>
   <tbody>
-    <tr><td>2026.03.11</td><td>샘플가맹점</td><td>123,450원</td><td>123,450원</td><td>0원</td></tr>
-    <tr><td>2026.03.12</td><td>테스트마트</td><td>7,800원</td><td>7,800원</td><td>0원</td></tr>
+    <tr><td>2026.03.11</td><td class="x-left">샘플가맹점</td><td class="x-right">123,450원</td><td class="x-right">123,450원</td><td class="x-right">0원</td></tr>
+    <tr><td>2026.03.12</td><td class="x-left">테스트마트</td><td class="x-right">7,800원</td><td class="x-right">7,800원</td><td class="x-right">0원</td></tr>
+    <tr class="x-total"><th colspan="2">합계</th><td class="x-right">131,250원</td><td class="x-right">131,250원</td><td class="x-right">0원</td></tr>
   </tbody>
 </table>
 

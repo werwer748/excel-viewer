@@ -1,0 +1,15 @@
+# 테스트에서 클래스 이름조차 나오지 않는 본체 파일들. 면제(tdd-exempt.txt)와 다르다 —
+# 면제는 "샌드박스에서 사람이 확인한다"는 뜻이지만, 여기 있는 것은 그냥 **빚**이다.
+#
+# tdd-guard 는 신규 생성만 막으므로, 훅이 생기기 전에 있던 파일은 영원히 테스트 없이
+# 고칠 수 있다. 그 사각지대가 조용히 넓어지지 않도록 check.sh 가 이 목록보다 늘면 실패한다.
+# **줄이는 것은 자유다.** 테스트를 붙였으면 해당 줄을 지우면 된다.
+#
+# 형식: src/main/kotlin/dev/hugo/sheetview/ 기준 상대경로 한 줄에 하나.
+
+actions/OpenAsSpreadsheetAction.kt
+export/ExportFormats.kt
+format/CellTypeInference.kt
+format/DelimitedReader.kt
+format/SpreadsheetMlReader.kt
+model/SheetData.kt

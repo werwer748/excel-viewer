@@ -1,0 +1,9 @@
+{
+  "name": "sheetview-kit",
+  "displayName": "Spreadsheet Viewer Kit",
+  "version": "1.1.0",
+  "description": "Spreadsheet Viewer(JetBrains 플러그인) 저장소 전용 작업 도구. 본체보다 테스트가 먼저 오게 막는 TDD 게이트, 게이트 자신을 지키는 자기보호, 세션마다 하네스 상태를 알리는 브리핑, 그리고 브랜치→구현→리뷰→검증→인계를 기계적으로 강제하는 작업 사이클을 싣는다.",
+  "author": { "name": "hugo" },
+  "license": "MIT",
+  "keywords": ["tdd", "kotlin", "jetbrains-plugin", "code-review", "sandbox", "workflow"]
+}

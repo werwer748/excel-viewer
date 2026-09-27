@@ -41,7 +41,7 @@ class SheetPanel(
     parentDisposable: Disposable,
     private val onReload: () -> Unit,
     private val onExport: (Sheet, ExportFormat, Boolean) -> Unit,
-) : JPanel(BorderLayout()) {
+) : JPanel(BorderLayout()), LoadingHost {
 
     private val loadingPanel = JBLoadingPanel(BorderLayout(), parentDisposable)
 
@@ -74,12 +74,13 @@ class SheetPanel(
 
     // ---------- 상태 ----------
 
-    fun startLoading(text: String = "읽는 중…") {
+    // 기본값은 LoadingHost 인터페이스에 있다. 재정의에 기본값을 다시 쓸 수 없다.
+    override fun startLoading(text: String) {
         loadingPanel.setLoadingText(text)
         loadingPanel.startLoading()
     }
 
-    fun stopLoading() = loadingPanel.stopLoading()
+    override fun stopLoading() = loadingPanel.stopLoading()
 
     fun preferredFocus(): JComponent = currentTable() ?: this
 
@@ -128,7 +129,7 @@ class SheetPanel(
         setCenter(center)
     }
 
-    fun showMessage(title: String, detail: String?) {
+    override fun showMessage(title: String, detail: String?) {
         banners.removeAll()
         val panel = JBPanelWithEmptyText(BorderLayout())
         panel.emptyText.text = title

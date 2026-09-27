@@ -19,3 +19,15 @@ build/
 # 개인 환경 경로는 ~/.gradle/gradle.properties 에 둔다.
 # 저장소의 gradle.properties 에는 빈 값과 설명만 있다.
 local.properties
+
+# 개인 permission·env 설정. 저장소에 올리지 않는다.
+.claude/settings.local.json
+
+# 플러그인 서명 키와 인증서. 실제 보관 위치는 저장소 밖이고
+# (예: ~/.config/spreadsheet-viewer-signing/) 경로만 ~/.gradle/gradle.properties 에 적는다.
+# 여기 적는 것은 그 규약을 깜빡했을 때를 위한 안전망이다 — 키를 만들기 전에 먼저 둔다.
+*.pem
+*.crt
+*.p12
+*.jks
+*.key

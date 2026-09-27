@@ -1,0 +1,101 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume|clear",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/hooks/session-brief.sh\"",
+            "timeout": 30,
+            "statusMessage": "하네스 상태 확인 중"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/hooks/pre-commit-check.sh\"",
+            "timeout": 600,
+            "statusMessage": "커밋 전 lint · build · test 실행 중"
+          }
+        ]
+      },
+      {
+        "matcher": "Write|Edit|MultiEdit|NotebookEdit|Bash|mcp__.*__(create|write|apply|edit|execute|rename|reformat|patch|move|delete)",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/hooks/tdd-guard.sh\"",
+            "timeout": 30,
+            "statusMessage": "TDD: 테스트가 먼저 있는지 확인 중"
+          }
+        ]
+      },
+      {
+        "matcher": "Write|Edit|MultiEdit|NotebookEdit|Bash|mcp__.*__(create|write|apply|edit|execute|rename|reformat|patch|move|delete)",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/hooks/branch-guard.sh\"",
+            "timeout": 20,
+            "statusMessage": "브랜치 확인 중"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit|MultiEdit|NotebookEdit|mcp__.*__(create|write|apply|edit|patch)",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/hooks/tdd-red.sh\"",
+            "timeout": 600,
+            "statusMessage": "TDD: 새 테스트가 실패하는지(red) 확인 중"
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "matcher": "sheet-reviewer",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/hooks/cycle-review.sh\"",
+            "timeout": 30,
+            "statusMessage": "리뷰 결과를 사이클에 기록 중"
+          }
+        ]
+      },
+      {
+        "matcher": "sandbox-runner",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/hooks/cycle-verify.sh\"",
+            "timeout": 30,
+            "statusMessage": "샌드박스 검증 결과를 사이클에 기록 중"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/hooks/cycle-stop.sh\"",
+            "timeout": 30,
+            "statusMessage": "사이클 완료 여부 확인 중"
+          }
+        ]
+      }
+    ]
+  }
+}
