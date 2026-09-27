@@ -33,13 +33,13 @@ printf 'branch=%s\nround=0\nmax_rounds=3\nreview=pending\nverify=pending\nharnes
 
 - `Write`·`Edit` 뿐 아니라 **`touch`·`cp`·`mv`·`dd`·리다이렉션·`tee`·MCP 쓰기 툴**도 같이 막힌다. 툴을 바꿔 우회하려 하지 마라.
 - 막히면 답은 **로직을 순수 클래스로 빼내 테스트하는 것**이다. 면제 목록에 추가하는 것이 아니다.
-- `.claude/tdd-exempt.txt` · `tdd-baseline` · 훅 스크립트 · `check.sh` 를 고치려 하면 **ask** 가 뜬다. 이건 게이트 자신이기 때문이다. 이 사이클에서 그걸 고쳤다면 `harness_touched=yes` 를 상태에 남기고, 마지막 보고에 왜 고쳤는지 적는다.
+- `.claude/tdd-exempt.txt` · `tdd-baseline` · 훅 스크립트 · `check.sh` 를 고치려 하면 **ask** 가 뜬다. 이건 게이트 자신이기 때문이다. 그때 `tdd-guard.sh` 가 상태에 `harness_touched=yes` 를 **스스로** 남긴다 — 직접 적지 않는다. 마지막 보고에 왜 고쳤는지 적는다.
 
 새 테스트를 만들면 `tdd-red.sh` 가 그 테스트만 돌려 **실패(red)하는지** 확인한다. 처음부터 통과하면 그 테스트는 아무것도 지키지 않는다.
 
 ### ③ 리뷰
 
-`sheet-reviewer` 에이전트에게 맡긴다. 끝나면 `cycle-review.sh` 가 보고서의 `### 🔴` 섹션을 세어 상태에 기록한다:
+`sheet-reviewer` 에이전트에게 맡긴다. 에이전트는 백그라운드로 돈다 — **결과를 기다리며 턴을 끝내도 된다.** 리뷰어·러너가 도는 동안에는 `cycle-stop.sh` 가 막지 않는다. 끝나면 `cycle-review.sh` 가 보고서의 `### 🔴` 섹션을 세어 상태에 기록한다:
 
 - 항목이 있으면 `review=red:N`, 라운드가 1 오른다
 - 없으면 `review=clean`
@@ -59,7 +59,7 @@ printf 'branch=%s\nround=0\nmax_rounds=3\nreview=pending\nverify=pending\nharnes
 
 ### ⑥ 반복
 
-`verify=red:N` 이면 고치고 ③ 부터 다시. 라운드가 `max_rounds` 에 닿으면 자동으로 멈추고 사람을 부른다.
+`verify=red:N` 이면 고치고 ③ 부터 다시. 리뷰 🔴 와 검증 🔴 가 모두 라운드를 올린다. 🔴 가 남은 채 라운드가 `max_rounds` 에 닿으면 자동으로 멈추고 사람을 부른다.
 
 ### ⑦ 인계
 
@@ -75,7 +75,7 @@ rm -f .claude/.cycle-state
 
 ## 막혔을 때
 
-- **세션이 안 끝난다**: `cycle-stop.sh` 가 되돌리는 중이다. stderr 에 남은 단계가 적혀 있다. 3번 되돌리면 포기하고 통과시킨다. 그만두려면 `rm -f .claude/.cycle-state`.
+- **세션이 안 끝난다**: `cycle-stop.sh` 가 되돌리는 중이다. stderr 에 남은 단계가 적혀 있다. **진전 없이 연속** 3번 되돌리면 포기하고 통과시킨다 — 리뷰·검증 판정이 기록되면 횟수는 0 으로 돌아간다. 그만두려면 `rm -f .claude/.cycle-state`.
 - **리뷰가 `unknown`**: 리뷰어가 보고 형식을 벗어났다. 다시 시키거나 사람에게 묻는다.
 - **샌드박스가 안 뜬다**: 같은 명령을 다시 던지지 마라 — 두 번째는 첫 번째 Gradle 락에 걸린다. `sandbox-up.sh status` 로 확인하고 `down` 으로 정리한다.
 - **테스트가 red 인데 내 변경과 무관해 보인다**: `TODO.md` 의 진행 중인 기능이 테스트를 먼저 올려 둔 상태일 수 있다. 내 변경분만 돌려 본다.

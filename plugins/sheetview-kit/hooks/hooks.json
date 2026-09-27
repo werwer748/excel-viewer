@@ -22,6 +22,11 @@
             "command": "sh \"${CLAUDE_PLUGIN_ROOT}/hooks/pre-commit-check.sh\"",
             "timeout": 600,
             "statusMessage": "커밋 전 lint · build · test 실행 중"
+          },
+          {
+            "type": "command",
+            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/hooks/agent-guard.sh\"",
+            "timeout": 20
           }
         ]
       },
@@ -63,7 +68,7 @@
     ],
     "SubagentStop": [
       {
-        "matcher": "sheet-reviewer",
+        "matcher": "(^|:)sheet-reviewer$",
         "hooks": [
           {
             "type": "command",
@@ -74,7 +79,7 @@
         ]
       },
       {
-        "matcher": "sandbox-runner",
+        "matcher": "(^|:)sandbox-runner$",
         "hooks": [
           {
             "type": "command",

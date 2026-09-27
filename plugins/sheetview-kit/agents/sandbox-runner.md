@@ -5,12 +5,6 @@ tools: Read, Grep, Glob, Bash, Skill
 skills:
   - sheetview-kit:sandbox-run
   - sheetview-kit:sandbox-verify
-hooks:
-  PreToolUse:
-    - matcher: "Bash"
-      hooks:
-        - type: command
-          command: sh "${CLAUDE_PLUGIN_ROOT}/hooks/agent-guard.sh"
 model: inherit
 ---
 
@@ -40,8 +34,9 @@ model: inherit
 ## 이 에이전트의 규칙
 
 > `tools:` 에 Edit·Write 가 없는 것은 의도다. Bash 로 그 의도를 우회하는 명령
-> (`sed -i`, `git checkout --`, 리다이렉션 등)은 frontmatter 의 `hooks:` 가 거절한다.
-> `runIde` 는 이 에이전트의 일이므로 허용된다.
+> (`sed -i`, `git checkout --`, 리다이렉션 등)은 플러그인 훅 `agent-guard.sh` 가 거절한다.
+> `/tmp` 로 내보내는 것은 된다. `runIde` 는 이 에이전트의 일이므로 허용된다.
+> (frontmatter `hooks:` 는 플러그인 에이전트에서 무시되므로 거기 두지 않는다.)
 
 - **사람 대신 써보지 않는다.** 자동 클릭도, 스크린샷 판독도 없다. 띄우고, 볼 것을 알려주고, 다 본 뒤 로그로 뒷받침하는 것까지가 범위다.
 

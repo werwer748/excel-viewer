@@ -5,18 +5,42 @@
 # 뜻이라서, 조건이 영영 참이 되지 않으면 세션이 빠져나가지 못한다. 그래서 탈출구를 셋 둔다:
 #
 #   1. .claude/.cycle-state 가 없으면 즉시 통과 — 평소 세션에는 아무 영향이 없어야 한다.
-#   2. stop_blocked 가 한도에 닿으면 포기하고 통과 — 플랫폼은 무한루프를 막아주지 않는다.
+#   2. **진전 없이 연속으로** MAX_BLOCK 번 되돌렸으면 포기하고 통과. 리뷰·검증 판정이
+#      기록되면(cycle-review / cycle-verify) 횟수가 0 으로 돌아간다. 플랫폼도 진전 없는
+#      연속 차단이 8회에 닿으면 Stop 훅을 무시하지만, 그보다 먼저 사람을 부른다.
 #   3. 판단이 안 되는 모든 경우 통과 — 다른 훅들과 같은 원칙이다.
+#
+# **리뷰·검증 에이전트가 돌고 있는 동안은 되돌리지 않는다.** 둘은 백그라운드로 돌고, 메인은
+# 결과를 기다리려면 턴을 끝내야 한다. 그 순간 Stop 이 불린다(실측: 서브에이전트가 끝나기
+# 2초 전에 불렸다). 예전에는 그 대기만으로 한도 3 을 다 써서, 리뷰가 끝나기도 전에 게이트가
+# 꺼졌다(TSV 사이클). Stop 입력의 background_tasks 가 돌고 있는 에이전트의 agent_type 을
+# 알려주므로 그걸 본다. 결과가 오면 알림이 메인을 깨우고, 그 턴이 끝날 때 다시 판정한다.
 #
 # 막는 것은 여기 하나뿐이고, 상태를 만드는 것은 cycle-review / cycle-verify 다.
 set -u
 
-MAX_BLOCK=3        # 이만큼 되돌렸는데도 안 끝나면 포기한다
-MAX_ROUNDS=3       # 리뷰->수정 라운드 상한. 수렴하지 않는 것을 무한히 돌리지 않는다
+MAX_BLOCK=3        # 진전 없이 이만큼 연속으로 되돌렸으면 포기한다
+MAX_ROUNDS=3       # 고치고 다시 도는 라운드 상한. 수렴하지 않는 것을 무한히 돌리지 않는다
 
+payload=$(cat)
 . "$(dirname -- "$0")/_common.sh" 2>/dev/null || exit 0
 PROJECT_DIR=$(sheetview_project_dir) || exit 0
 sheetview_cycle_active "$PROJECT_DIR" || exit 0        # 탈출구 1
+
+# 기다리는 중이면 되돌리지도, 세지도 않는다.
+waiting=$(printf '%s' "$payload" | python3 -c '
+import json, re, sys
+try:
+    d = json.load(sys.stdin)
+except Exception:
+    sys.exit(0)
+tasks = d.get("background_tasks") if isinstance(d, dict) else None
+for t in tasks if isinstance(tasks, list) else []:
+    if isinstance(t, dict) and t.get("status") == "running" and \
+       re.search(r"(^|:)(sheet-reviewer|sandbox-runner)$", str(t.get("agent_type") or "")):
+        print(t.get("agent_type")); break
+' 2>/dev/null)
+[ -z "$waiting" ] || exit 0
 
 get() { sheetview_cycle_get "$PROJECT_DIR" "$1" 2>/dev/null || printf '%s' "${2:-}"; }
 
@@ -38,20 +62,32 @@ harness_note=""
   ⚠ 이번 사이클에서 게이트 자신(면제 목록·래칫·훅)을 수정했습니다.
     지적을 없애려고 고친 것이 아닌지 확인하세요.'
 
-# 탈출구 2 — 되돌리기 한도
+# 탈출구 2 — 진전 없는 연속 되돌리기. 알림은 한도에 닿은 그 한 번만 한다(예전에는 멈출
+# 때마다 같은 문단을 되풀이했다). review·verify 는 덮어쓰지 않는다 — 예전에는 verify=halted 로
+# 덮어써서 나중에 기록된 clean 까지 지웠다.
 if [ "$blocked" -ge "$MAX_BLOCK" ]; then
-  printf '사이클이 %s번 되돌려도 끝나지 않아 통과시킵니다. 상태: review=%s verify=%s%s\n' \
-    "$blocked" "$review" "$verify" "$harness_note" >&2
-  sheetview_cycle_set "$PROJECT_DIR" verify halted
+  if [ "$blocked" -eq "$MAX_BLOCK" ]; then
+    printf '사이클: 진전 없이 %s번 되돌려서 더는 막지 않습니다. 상태: review=%s verify=%s\n' \
+      "$blocked" "$review" "$verify" >&2
+    printf '리뷰나 검증 판정이 새로 기록되면 다시 막습니다. 그만두려면 .claude/.cycle-state 를 지우세요.%s\n' \
+      "$harness_note" >&2
+    sheetview_cycle_set "$PROJECT_DIR" stop_blocked "$((blocked + 1))"
+  fi
   exit 0
 fi
 
-# 라운드 상한 — 수렴 실패는 막는 것이 아니라 사람을 부르는 것으로 끝낸다
-if [ "$round" -ge "$max_rounds" ] && [ "$review" != "clean" ]; then
-  printf '사이클: 리뷰 라운드가 상한(%s)에 닿았는데 🔴 가 남아 있습니다 (review=%s).\n' \
-    "$max_rounds" "$review" >&2
-  printf '자동으로 더 돌리지 않습니다. 사람이 판단해야 합니다.%s\n' "$harness_note" >&2
-  sheetview_cycle_set "$PROJECT_DIR" verify halted
+# 라운드 상한 — 🔴 가 남은 채 상한에 닿으면 막지 않고 사람을 부른다. 🔴 가 없으면
+# (마지막 수정이 리뷰를 통과했으면) 남은 단계는 계속 요구한다.
+unresolved=no
+case "$review" in red:*|unknown) unresolved=yes ;; esac
+case "$verify" in red:*|unknown) unresolved=yes ;; esac
+if [ "$round" -ge "$max_rounds" ] && [ "$unresolved" = yes ]; then
+  if [ "$(get round_notified)" != "$round" ]; then
+    printf '사이클: 라운드가 상한(%s)에 닿았는데 🔴 가 남아 있습니다 (review=%s verify=%s).\n' \
+      "$max_rounds" "$review" "$verify" >&2
+    printf '자동으로 더 돌리지 않습니다. 사람이 판단해야 합니다.%s\n' "$harness_note" >&2
+    sheetview_cycle_set "$PROJECT_DIR" round_notified "$round"
+  fi
   exit 0
 fi
 
@@ -75,9 +111,9 @@ sheetview_cycle_set "$PROJECT_DIR" stop_blocked "$((blocked + 1))"
     clean)   ;;
     red:*)   echo "  - 샌드박스에서 나온 문제($verify)를 고치고 리뷰부터 다시 도세요." ;;
     pending) [ "$review" = "clean" ] && echo "  - sandbox-runner 에이전트로 샌드박스 검증을 하세요." ;;
-    halted)  ;;
     *)       echo "  - 샌드박스 검증 결과를 읽지 못했습니다($verify)." ;;
   esac
+  echo "  (리뷰어·러너가 돌고 있는 동안에는 막지 않습니다. 결과를 기다리며 턴을 끝내도 됩니다.)"
   printf '%s' "$harness_note"
   echo
   echo "(사이클을 그만두려면 .claude/.cycle-state 를 지우면 됩니다.)"

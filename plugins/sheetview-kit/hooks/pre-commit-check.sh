@@ -42,8 +42,9 @@ CHECK="$PROJECT_DIR/scripts/check.sh"
 [ -x "$CHECK" ] || exit 0
 
 # runIde 가 프로젝트 락을 잡고 있으면 check.sh 가 통째로 대기한다(타임아웃까지).
-# tdd-red.sh 는 이미 같은 방어를 하고 있었는데 이쪽에는 없었다.
-if pgrep -f 'runIde' >/dev/null 2>&1; then
+# tdd-red.sh 는 이미 같은 방어를 하고 있었는데 이쪽에는 없었다. 이 체크아웃의 것만 센다 —
+# 본체의 샌드박스가 워크트리의 커밋까지 막던 오탐이 있었다(_common.sh 의 sheetview_pids).
+if [ -n "$(sheetview_pids runIde "$PROJECT_DIR")" ]; then
   {
     echo "샌드박스(runIde)가 떠 있어 커밋 전 검사를 돌릴 수 없습니다 — Gradle 프로젝트 락 때문입니다."
     echo "IDE 를 닫은 뒤 다시 커밋하세요:  sh plugins/sheetview-kit/scripts/sandbox-up.sh down"
