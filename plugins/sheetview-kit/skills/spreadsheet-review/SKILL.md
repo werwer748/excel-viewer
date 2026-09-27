@@ -23,50 +23,65 @@ description: Spreadsheet Viewer(JetBrains 플러그인, Kotlin) 코드를 리뷰
 
 어디를 봐야 하는지 매번 찾지 않도록. **규칙** 열은 그 영역의 "되돌리면 안 되는 결정"과 측정 근거다 (`.claude/rules/` 기준).
 서브에이전트에서 규칙이 자동으로 붙는다는 보장은 없으므로, 리뷰할 영역의 규칙 파일은 **직접 Read 한다.**
+**체크리스트** 열은 그 영역이 바뀌었을 때 아래 ①~⑧ 중 볼 항목이다. 바뀐 경로들의 합집합만 본다.
 
-| 영역 | 파일 | 규칙 |
-|---|---|---|
-| 포맷 판별 | `format/SpreadsheetSniffer.kt` | `filetype-and-tabs.md`, `errors-and-limits.md` |
-| 파일 타입·탭 | `filetype/SpreadsheetFileType.kt`, `filetype/TextFileTypes.kt`, `resources/META-INF/plugin.xml` | `filetype-and-tabs.md` |
-| 진입점·크기 가드 | `format/SpreadsheetReaders.kt` | `errors-and-limits.md` |
-| 계약(상한·취소·예외) | `format/SpreadsheetReader.kt` | `errors-and-limits.md` |
-| 파서 | `format/XlsxReader.kt`, `ExcelHtmlReader.kt`, `SpreadsheetMlReader.kt`, `DelimitedReader.kt` | `table-parsing.md`, `errors-and-limits.md` |
-| 표 모델 | `model/SheetData.kt`, `format/CellTypeInference.kt` | `table-parsing.md` |
-| IDE 통합 | `editor/SheetFileEditor.kt`, `SheetPanel.kt`, `SheetEditorProvider.kt`, `actions/`, `resources/META-INF/plugin.xml` | `swing-editor.md`, `filetype-and-tabs.md` |
-| 원본 탭·미리보기 | `editor/Source*.kt`, `source/`, `preview/`, `resources/META-INF/sheetview-jcef.xml` | `source-tab-light.md`, `jcef-preview.md` |
-| 빌드·호환성 | `build.gradle.kts`, `gradle.properties` | `build-and-deps.md` |
+| 영역 | 파일 | 규칙 | 체크리스트 |
+|---|---|---|---|
+| 포맷 판별 | `format/SpreadsheetSniffer.kt` | `filetype-and-tabs.md`, `errors-and-limits.md` | ①③ |
+| 파일 타입·탭 | `filetype/SpreadsheetFileType.kt`, `filetype/TextFileTypes.kt`, `resources/META-INF/plugin.xml` | `filetype-and-tabs.md` | ①④⑦ |
+| 진입점·크기 가드 | `format/SpreadsheetReaders.kt` | `errors-and-limits.md` | ②③ + 네 리더 교차 |
+| 계약(상한·취소·예외) | `format/SpreadsheetReader.kt` | `errors-and-limits.md` | ②③ + 네 리더 교차 |
+| 파서 | `format/XlsxReader.kt`, `ExcelHtmlReader.kt`, `SpreadsheetMlReader.kt`, `DelimitedReader.kt` | `table-parsing.md`, `errors-and-limits.md` | ②③⑤⑥ + 네 리더 교차 |
+| 표 모델 | `model/SheetData.kt`, `format/CellTypeInference.kt` | `table-parsing.md` | ⑤⑥ |
+| 내보내기 | `export/ExportFormats.kt` | `errors-and-limits.md` | ⑥ (EDT 에서 불리는 경로가 바뀌었으면 ④) |
+| IDE 통합 | `editor/SheetFileEditor.kt`, `SheetPanel.kt`, `SheetEditorProvider.kt`, `actions/`, `resources/META-INF/plugin.xml` | `swing-editor.md`, `filetype-and-tabs.md` | ③④ |
+| 원본 탭·미리보기 | `editor/Source*.kt`, `source/`, `preview/`, `resources/META-INF/sheetview-jcef.xml` | `source-tab-light.md`, `jcef-preview.md` | ③④⑦ |
+| 빌드·호환성 | `build.gradle.kts`, `gradle.properties` | `build-and-deps.md` | ⑦ |
+
+⑧(테스트)은 `src/main` 이 바뀌었으면 항상 본다. 고른 항목에 없는 체크리스트는 따지지 않고,
+보고서에 `해당 없음: ①②⑦ (변경 경로 밖)` 한 줄만 남긴다.
 
 ## 순서
 
-### 1. 기계가 잡을 수 있는 건 먼저 기계에 맡긴다
+리뷰 시간은 도구가 아니라 **모델 턴 수**로 정해진다. TSV 사이클의 리뷰 두 번을 재 보니
+도구 실행은 전체의 2~7%였고 나머지는 턴이었다(턴당 약 20초). 그래서 아래 절차는 턴을 줄이는 쪽으로 짜여 있다.
 
-```bash
-./gradlew test        # 파서 테스트. 실제 명세서 + 픽스처 기반이라 회귀를 잘 잡는다
-```
+### 0. 브리핑을 먼저 본다
+
+호출한 쪽이 리뷰 대상(git 범위), 바뀐 것, 자동 검사 결과, 규칙 파일, (재리뷰면) 이전 지적을 줬으면
+그걸로 시작한다. 다시 찾지 않는다. 브리핑 템플릿은 `feature-cycle` 스킬의 ③ 에 있다.
+이전 지적이 있으면 아래 '재리뷰(델타) 모드'로 간다.
+
+### 1. 첫 턴에 한꺼번에 읽는다
+
+- `git status --short` · `git diff --stat` · `git diff <범위>`, 그리고 브리핑에 있는 규칙 파일·변경 파일의 Read 를
+  **한 메시지에 병렬로** 호출한다. 브리핑이 없으면 첫 턴은 git 만 하고, 둘째 턴에 Read 를 몰아서 한다.
+- 바뀐 함수를 **호출하는 쪽**과 나머지 리더처럼 따라가며 읽을 파일도 한 턴에 묶는다.
+  리더 한 곳을 고쳤으면 **나머지 세 리더의 같은 자리도 본다.** 네 리더가 같은 계약
+  (`ReadLimits`·`checkCancelled`·직사각형 그리드)을 각자 구현하고 있어서, 한쪽만 고치면 조용히 갈라진다.
+- **같은 파일을 두 번 Read 하지 않는다.** 일부만 필요해 보여도 처음에 전체를 읽는다 — 이 프로젝트의 파일은 전부 작다.
+- grep 은 목적별로 흩지 말고 `-e` 를 여러 개 붙여 한 번에 묶는다.
+- 범위를 모르겠으면 전체를 보되 위험도 순서(파서 → 에디터 → 나머지)로 본다. 전체를 볼 수 있는 규모다.
+
+### 2. 기계가 잡을 수 있는 건 기계에 맡긴다
+
+- **브리핑에 자동 검사 결과가 있으면 다시 돌리지 않는다.**
+- 없으면 `./gradlew test` 를 1번의 병렬 호출에 같이 넣는다. 파서 테스트는 실제 명세서와 픽스처 기반이라 회귀를 잘 잡는다.
+- `./scripts/check.sh` 는 돌리지 않는다. 빌드까지 해서 느리고, 커밋 전에 호출한 쪽이 돌린다.
+- `./gradlew verifyPlugin` 도 직접 돌리지 않는다(몇 분 걸린다). `plugin.xml`·`build.gradle.kts`·플랫폼 API 를 건드렸는데
+  브리핑에 결과가 없으면 🟡 에 "verifyPlugin 필요"로 적는다.
 
 리더·모델은 플랫폼 클래스를 쓰지 않아 순수 JVM 테스트로 돈다. **이게 이 프로젝트의 설계 자산이다** —
 리뷰 중에 리더 쪽으로 플랫폼 의존이 새어 들어오는 변경을 보면 그 자체가 지적거리다.
 
-`plugin.xml`이나 `build.gradle.kts`를 건드린 변경이면 `./gradlew verifyPlugin`도 돌릴 값어치가 있다.
-다만 IDE 4개를 검증해 몇 분 걸리니, 플랫폼 API를 건드리지 않은 변경에는 생략하고 그 사실만 보고에 적는다.
-
 테스트가 깨졌다면 **그것부터 보고한다.** 나머지 리뷰는 그 다음이다.
+**진행 중인 기능이 테스트를 먼저 올려 둬서 이미 red 일 수 있다.** 실패를 지적하기 전에
+그것이 요청받은 변경 때문인지 확인하고, 아니면 `TODO.md`의 진행 중 항목을 근거로 그 사실만 적는다.
 
-### 2. 변경 범위를 파악한다
+### 3. 코드 지도가 고른 체크리스트만 훑는다
 
-- 호출한 쪽이 "무엇을 고쳤는지" 알려줬으면 그 파일과 **그 함수를 호출하는 쪽까지** 읽는다.
-- 모르면 git으로 잡는다: `git status --short` 로 미커밋 변경, `git diff` 로 내용.
-- 그래도 모르겠으면 전체를 보되, 위험도 순서(파서 → 에디터 → 나머지)로 본다. 전체를 볼 수 있는 규모다.
-- **진행 중인 기능이 테스트를 먼저 올려 둬서 이미 red 일 수 있다.** 실패를 지적하기 전에
-  그것이 요청받은 변경 때문인지 확인하고, 아니면 `TODO.md`의 진행 중 항목을 근거로 그 사실만 적는다.
-
-리더 한 곳을 고쳤으면 **나머지 세 리더의 같은 자리도 본다.** 네 리더가 같은 계약
-(`ReadLimits`·`checkCancelled`·직사각형 그리드)을 각자 구현하고 있어서, 한쪽만 고치면 조용히 갈라진다.
-
-### 3. 체크리스트를 순서대로 훑는다
-
-위쪽이 더 치명적이다. 각 항목에서 **"이 코드를 깨뜨리는 구체적인 파일"** 을 떠올려 보고,
-떠오르지 않으면 지적하지 않는다.
+위쪽이 더 치명적이다. 코드 지도의 **체크리스트** 열로 고른 항목만 본다.
+각 항목에서 **"이 코드를 깨뜨리는 구체적인 파일"** 을 떠올려 보고, 떠오르지 않으면 지적하지 않는다.
 
 **① 포맷 판별 — 확장자를 믿는 순간이 있는가**
 
@@ -151,6 +166,8 @@ description: Spreadsheet Viewer(JetBrains 플러그인, Kotlin) 코드를 리뷰
 - 내보내기(CSV/TSV/JSON/Markdown)에서 이스케이프가 맞는가 — 값에 들어 있는 쉼표·따옴표·개행·파이프.
   TSV 는 따옴표 이스케이프가 없어 탭·CR·LF 를 공백으로 바꾸는데, **헤더 라벨도** 거쳐야 한다.
   줄바꿈을 다루는 곳은 LF 만이 아니라 **CRLF·단독 CR** 까지 보는가 — `DelimitedReader` 가 따옴표 필드 안의 CRLF 를 셀에 그대로 담는다.
+- 내보낸 CSV·TSV 를 **이 플러그인의 `DelimitedReader` 로 다시 열면** 같은 표가 되는가. 받는 쪽 중 가장 가까운 것이 우리 리더다 —
+  예: 짝 없는 `"` 로 시작하는 TSV 셀은 `DelimitedReader` 가 따옴표로 보고 파일 끝까지 한 필드로 읽는다.
 
 **⑦ 이식성 — 다섯 IDE에 같은 ZIP이 들어간다**
 
@@ -167,12 +184,46 @@ description: Spreadsheet Viewer(JetBrains 플러그인, Kotlin) 코드를 리뷰
 
 - 새 포맷 분기·새 경계 조건에 `src/test/resources/fixtures/` 픽스처와 테스트가 붙었는가.
 - 테스트가 **플랫폼 클래스를 끌어오지 않는가.** 끌어오는 순간 순수 JVM 테스트가 아니게 되고 느려진다.
+- 리더를 거치는 테스트가 **의도한 경로를 탔는지도** 단언하는가. 예를 들어 헤더 경로를 고정한다면서 `headerRowCount` 를 단언하지 않으면,
+  헤더 판정이 깨져 데이터 경로로 나가도 출력이 같아 통과한다.
 - 회귀 픽스처(`corrupt.xlsx`, `empty.xls`, `binary.xlsb`, `cp949.csv`, `legacy.xls`)가 커버하던
   동작을 바꿨다면 그 테스트도 같이 바뀌었는가 — 테스트를 느슨하게 고쳐 통과시킨 흔적은 지적한다.
+
+## 범위 밖
+
+측정해 보니 리뷰 시간의 상당 부분이 여기에 들었다. 이것들은 다른 곳이 지킨다.
+
+- **하네스 내부** — 훅 스크립트, `hooks.json`, `check.sh`, `test-hooks.sh` 는 읽지 않는다. `test-hooks.sh` 가 지킨다.
+  diff 에 게이트 파일(`.claude/tdd-exempt.txt`·`tdd-uncovered`·`tdd-baseline`)이 있으면 **면제나 미커버 목록이 늘었는지만** 본다.
+  줄어든 것은 정상이다.
+- **`tdd-baseline` 을 갱신했는지** — 커밋 절차이고, `check.sh` 가 올릴 값을 안내한다.
+- **문서에 적힌 개수·숫자가 맞는지** — CLAUDE.md 가 문서에 개수를 하드코딩하지 말라고 정해 두었다. 그런 숫자를 찾아 grep 하지 않는다.
+- **예외: 사용자에게 보이는 문구.** diff 가 사용자에게 보이는 목록이나 문구(내보내기 형식, 지원 확장자 등)를 바꿨으면
+  옛 문구로 **한 번** grep 해서 `plugin.xml` 의 `<description>` 과 README 에 옛 문구가 남았는지 본다.
+  TSV 를 추가할 때 이 확인으로 `plugin.xml` 설명문에서 TSV 가 빠진 것을 잡았다.
+
+## 재리뷰(델타) 모드
+
+브리핑에 이전 라운드의 지적 목록이 있으면 이 모드로 본다. 처음부터 다시 리뷰하지 않는다.
+
+- 각 지적이 해소됐는지는 **그 지적에 해당하는 hunk 만** 보고 판정한다.
+- 체크리스트는 이번 수정 hunk 가 **새로 만든** 문제에만 적용한다. 이전 라운드의 "확인했고 문제없던 것"은 다시 보지 않는다.
+- 보고서에는 `### 이전 지적 확인` 섹션을 **`### 🔴` 섹션 뒤에** 두고, `- 🟡3 해소 — 파일:줄` 처럼 `-` 목록으로 적는다.
+  **이 헤더에는 🔴 를 넣지 않는다.** `cycle-review.sh` 가 🔴 가 든 첫 `###` 헤더를 판정 섹션으로 잡기 때문이다.
+- **해소되지 않은 이전 🔴 는 `### 🔴` 섹션에 번호 목록으로 다시 적는다.** 훅은 그 섹션의 번호만 센다.
 
 ## 보고 형식
 
 이 형식을 그대로 쓴다. 사람이 위에서부터 읽으며 바로 고칠 수 있어야 한다.
+**섹션 헤더 문자열과 마지막 판단 한 줄은 바꾸지 않는다** — `cycle-review.sh` 가 `### 🔴` 섹션의 번호 목록을 센다.
+
+보고서를 쓰는 턴도 길다(TSV 1차에서 약 100초). 그래서 분량을 정해 둔다.
+
+- **자동 검사**: 한 줄.
+- **🔴**: 아래 형식 그대로 쓴다(재현·원인·수정). 코드 조각은 🔴 에만 쓴다.
+- **🟡**: 한 줄 요약 + `파일:줄`, 재현 한 줄, 수정 한 줄.
+- **🟢**: 최대 3줄.
+- **확인했고 문제없던 것**: 본 체크리스트 항목마다 한 줄, 그리고 `해당 없음` 한 줄.
 
 ```markdown
 ## 리뷰: <대상>
@@ -185,14 +236,20 @@ description: Spreadsheet Viewer(JetBrains 플러그인, Kotlin) 코드를 리뷰
    원인: <왜 그렇게 되는가>
    수정: <무엇을 어떻게>
 
+### 이전 지적 확인   ← 재리뷰일 때만. 이 헤더에는 빨간 원 이모지를 넣지 않는다
+- 🟡3 해소 — `export/ExportFormats.kt:142`
+
 ### 🟡 고치면 좋음
-...같은 형식...
+1. **<한 줄 요약>** — `파일:줄`
+   재현: <한 줄>
+   수정: <한 줄>
 
 ### 🟢 참고
-- <취향·대안 수준의 메모>
+- <취향·대안 수준의 메모, 최대 3줄>
 
 ### 확인했고 문제없던 것
-- <검토했지만 이상 없던 항목을 짧게 — 리뷰 범위를 보여준다>
+- ⑥ <본 항목마다 한 줄 — 리뷰 범위를 보여준다>
+- 해당 없음: ①②⑦ (변경 경로 밖)
 ```
 
 ## 지적의 기준
@@ -205,6 +262,9 @@ description: Spreadsheet Viewer(JetBrains 플러그인, Kotlin) 코드를 리뷰
 "CRLF 34바이트가 앞에 붙어 있다", "`<th>` 규칙은 틀린다" 같은 주석은 취향이 아니라
 실제 파일을 열어보고 남긴 결론이다. 이상해 보이는 코드를 지적하기 전에 **주석과 해당 영역의 `.claude/rules/` 규칙을 먼저 읽어라.**
 거기 이유가 적혀 있는데도 지적하면 리뷰 전체의 신뢰가 떨어진다.
+
+**`TODO.md` 에 이미 판단 보류로 적힌 문제라도, 이번 변경이 노출을 넓혔거나 새 근거(실측, 새로 깨지는 경로)를 찾았으면
+심각도를 내리지 않는다.** TODO 에 있다는 사실만으로 🟢 로 내리면 그 새 근거가 사라진다.
 
 지적 건수를 채우려 하지 마라. 문제가 없으면 없다고 말하는 게 훨씬 쓸모 있다.
 반대로 네 리더 사이에 갈라진 구현처럼 눈에 띄는 정리 기회는 🟢에 한두 줄 남겨 두면 다음 사람이 고맙다.

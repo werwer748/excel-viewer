@@ -59,6 +59,9 @@
 - [ ] **`cycle-stop.sh` 의 탈출구가 비동기 대기만으로 소진된다** — TSV 사이클에서 처음 드러났다. `sheet-reviewer` · `sandbox-runner` 는 **백그라운드로** 돌고, 결과를 기다리려면 턴을 끝내야 한다. 그때마다 `Stop` 이 걸려 `stop_blocked` 가 오르는데, 이 값은 **되돌아가지 않는다**. 리뷰 대기 한 번 + 검증 대기 한 번이면 한도(3)에 거의 닿고, 닿으면 탈출구 2 가 발동해 리뷰·검증 없이도 세션이 끝난다. 한도에 닿은 뒤에는 멈출 때마다 `verify=halted` 로 **덮어쓰므로** 나중에 `verify=clean` 이 기록돼도 지워진다.
   탈출구는 "세션이 갇히는 것"을 막으려던 것인데, 실제로 소진시키는 것은 갇힘이 아니라 정상적인 대기다. 후보: 리뷰·검증 에이전트가 **돌고 있는 동안**은 되돌리지 않기(시작 표시를 상태에 남기고 `SubagentStop` 이 지운다), 또는 `review`/`verify` 가 바뀔 때 `stop_blocked` 를 0 으로 되돌리기. 한도 도달 시 `verify` 를 덮어쓰지 말고 별도 키(`halted=yes`)에 남기기.
 
+- [ ] **플러그인 에이전트에서는 frontmatter `hooks:` 가 무시돼 `agent-guard.sh` 가 걸리지 않는다** — `sheet-reviewer`·`sandbox-runner` 의 `hooks: PreToolUse(Bash)` 가 여기에 해당한다. Claude Code 2.1.283 바이너리에서 `Plugin agent file … sets hooks, which is ignored for plugin agents. Use .claude/agents/ for this level of control.` 문자열을 확인했다(`permissionMode` · `mcpServers` 도 같은 목록에 있다). 따라서 에이전트 본문과 플러그인 README 의 "쓰기 명령이 거절된다"는 서술은 지금 사실이 아니다. 두 에이전트의 `tools:` 에서 Edit·Write 를 뺀 것만 실제로 효력이 있고, Bash 로 `sed -i` 를 쓰는 길은 열려 있다.
+  고치는 방향은 플러그인 `hooks.json` 의 `PreToolUse(Bash)` 에서 서브에이전트 호출을 가려내 `agent-guard.sh` 로 넘기는 것이다. 먼저 서브에이전트 안의 툴 호출 payload 에 에이전트 타입이 실리는지 확인해야 한다. 실리지 않으면 이 방향은 쓸 수 없다. 훅을 고치면 README·에이전트 본문의 서술도 같이 고친다.
+
 ## 샌드박스 자동 검증: 실측으로 닫힌 길
 
 같은 시도를 반복하지 않도록 남긴다. 셋 다 **직접 돌려보고** 확인했다.
