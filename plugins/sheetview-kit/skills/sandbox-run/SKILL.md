@@ -139,7 +139,7 @@ tail -n +$((MARK+1)) "$LOG"
 - `Slow operations are prohibited on EDT`
 - `already disposed` / `Memory leak detected` — dispose 누수
 - `EditorComposite.createTabbedPaneWrapper` 가 든 `IndexOutOfBoundsException` — 에디터 아래 탭 줄(**표** / **원본** / `Data`)의 선택 인덱스가 실제 탭 수와 어긋난 것. 이 플러그인이 `fileEditorProvider` 를 두 개 등록하고 번들 `scripted-data-editor` 가 하나 더 붙이는 바로 그 자리라 남의 일이 아니다. **이미 한 번 찍힌 적이 있다** — `Index 2 out of bounds for length 2`, 탭을 바꾸던 중. 스택에 `dev.hugo` 프레임이 없다고 넘기지 마라: 탭 구성은 우리가 만들고 선택은 플랫폼이 한다.
-- `not registered as a service` — `CLAUDE.md` 가 경고한 JCEF 확장 포인트 오사용 신호
+- `not registered as a service` — `.claude/rules/jcef-preview.md` 가 경고한 JCEF 확장 포인트 오사용 신호
 - 백그라운드 출력에 스택트레이스가 맨몸으로 찍혔는지 — `printStackTrace()` 금지 규약 위반
 
 #### 무시할 잡음 (실제 로그에서 확인한 것들)

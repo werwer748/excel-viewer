@@ -1,7 +1,7 @@
 # TODO
 
 각 줄에 **왜 필요한지**를 같이 적는다. 근거 없는 할 일은 나중에 판단할 수 없다.
-설계 결정과 빌드 규약은 [CLAUDE.md](CLAUDE.md)에 있다.
+빌드 규약은 [CLAUDE.md](CLAUDE.md), 영역별 설계 결정은 [`.claude/rules/`](.claude/rules/)에 있다.
 
 ## 마켓플레이스 등록까지 해야 할 일
 
@@ -82,12 +82,12 @@
 
 - [x] **원본 탭** (`SourceEditorProvider`, editor type id `sheetview.source`) — 착륙했다.
   미리보기 / 소스 / 내부 파트 3모드, hex 덤프 폴백, JCEF 없는 환경에서는 미리보기 모드 제외.
-  설계 제약(JCEF 는 optional 번들 플러그인, `Jsoup.clean` 금지, `releaseEditor` 누수 등)은 CLAUDE.md 에 있다.
+  설계 제약(JCEF 는 optional 번들 플러그인, `Jsoup.clean` 금지, `releaseEditor` 누수 등)은 `.claude/rules/` 의 `jcef-preview.md` · `swing-editor.md` · `source-tab-light.md` 에 있다.
 
 - [ ] **TSV 내보내기** — `ExportFormats.toTsv()` 는 이미 있지만 "시트 전체 복사"의 클립보드 포맷으로만 쓰인다. `ExportFormat` enum 에 항목을 더하면 내보내기 목록에도 나온다. TDD 훅 때문에 테스트가 먼저다(기존 `ExportFormats` 테스트에 케이스 추가).
 
 - [ ] **`maxCells` 상한이 두 리더에 적용되지 않는다** — `ReadLimits` 에 `maxCells` 가 선언돼 있고 `rowLimit(columnCount)` 도 있지만, 실제로 쓰는 곳은 `XlsxReader` 와 `ExcelHtmlReader` 뿐이다. `SpreadsheetMlReader` 와 `DelimitedReader` 는 `maxRows` · `maxColumns` 만 보므로 최악의 경우 선언된 상한을 훌쩍 넘는 그리드를 만들 수 있다. 입력 크기 상한(64MB)이 간접 방어로 남아 있어 당장 터지지는 않지만, 선언과 적용이 어긋난 상태다.
 
-- [ ] **진짜 BIFF `.xls`** — 지금은 미지원 안내 패널이다. 지원하더라도 **Apache POI 는 쓰지 않는다**(근거는 CLAUDE.md). 순수 JDK로 OLE2/BIFF8을 직접 읽는 범위를 어디까지 할지 정해야 하는 일이라, 필요해질 때 다시 판단한다.
+- [ ] **진짜 BIFF `.xls`** — 지금은 미지원 안내 패널이다. 지원하더라도 **Apache POI 는 쓰지 않는다**(근거는 `.claude/rules/build-and-deps.md`). 순수 JDK로 OLE2/BIFF8을 직접 읽는 범위를 어디까지 할지 정해야 하는 일이라, 필요해질 때 다시 판단한다.
 
 - [ ] **리더 네 곳의 중복 로직 통합** — 같은 계약을 각자 구현하고 있어 한쪽만 고치면 조용히 갈라진다. 후보: `key(row, col)` 비트 패킹(`ExcelHtmlReader` · `SpreadsheetMlReader`), `looksLikeHeader`(리더 세 곳), 직사각형 패딩(`XlsxReader` · `DelimitedReader`), 숫자 평문화(`XlsxReader.formatNumber` · `ExportFormats.plainNumber`), NBSP 치환(리더 세 곳).
