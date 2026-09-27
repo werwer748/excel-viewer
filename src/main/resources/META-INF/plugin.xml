@@ -31,7 +31,7 @@
         <li><b>XLSX</b> &mdash; 순수 JDK(zip + StAX) 스트리밍 파서로 읽어 대용량에서도 OOM이 없습니다.</li>
         <li><b>Excel 2003 XML</b>, <b>CSV/TSV</b></li>
       </ul>
-      <p>병합 셀(colspan/rowspan)을 펼쳐 다단 헤더를 정렬하고, 시트를 CSV / JSON / Markdown 으로
+      <p>병합 셀(colspan/rowspan)을 펼쳐 다단 헤더를 정렬하고, 시트를 CSV / TSV / JSON / Markdown 으로
          내보냅니다.</p>
       <p>읽을 수 없는 파일은 예외를 던지지 않고 사유를 설명하는 패널을 보여줍니다.</p>
     ]]></description>

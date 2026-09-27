@@ -6,6 +6,7 @@ import dev.hugo.sheetview.model.Sheet
 
 enum class ExportFormat(val label: String, val extension: String) {
     CSV("CSV", "csv"),
+    TSV("TSV", "tsv"),
     JSON("JSON", "json"),
     MARKDOWN("Markdown", "md"),
 }
@@ -15,6 +16,7 @@ object ExportFormats {
 
     fun render(sheet: Sheet, format: ExportFormat, useHeader: Boolean): String = when (format) {
         ExportFormat.CSV -> toCsv(sheet, useHeader)
+        ExportFormat.TSV -> toTsv(sheet, useHeader)
         ExportFormat.JSON -> toJson(sheet, useHeader)
         ExportFormat.MARKDOWN -> toMarkdown(sheet, useHeader)
     }
@@ -32,15 +34,13 @@ object ExportFormats {
         return sb.toString()
     }
 
-    /** 탭 구분. 클립보드에 넣으면 엑셀·시트에 그대로 붙는다. */
+    /** 탭 구분. 클립보드에 넣으면 엑셀·시트에 그대로 붙는다. 파일 내보내기도 같은 내용이다. */
     fun toTsv(sheet: Sheet, useHeader: Boolean): String {
         val skip = headerRows(sheet, useHeader)
         val sb = StringBuilder()
-        if (skip > 0) sb.append(sheet.headerLabels(skip).joinToString("\t")).append('\n')
+        if (skip > 0) sb.append(sheet.headerLabels(skip).joinToString("\t") { tsvField(it) }).append('\n')
         for (r in skip until sheet.rows.size) {
-            sb.append((0 until sheet.columnCount).joinToString("\t") {
-                sheet.cell(r, it).text.replace('\t', ' ').replace('\n', ' ')
-            })
+            sb.append((0 until sheet.columnCount).joinToString("\t") { tsvField(sheet.cell(r, it).text) })
             sb.append('\n')
         }
         return sb.toString()
@@ -109,6 +109,15 @@ object ExportFormats {
             value
         }
 
+    /**
+     * TSV 에는 따옴표 이스케이프가 없어서 필드 안의 탭·줄바꿈은 공백으로 바꿀 수밖에 없다.
+     * 헤더 라벨도 거친다 — Excel HTML 은 `<br>` 이 줄바꿈으로 들어오므로 다단 헤더에도 있을 수 있다.
+     */
+    private fun tsvField(value: String): String = normalizeLineEnds(value).replace('\n', ' ').replace('\t', ' ')
+
+    /** CRLF 와 단독 CR 을 LF 하나로 접는다. `DelimitedReader` 는 따옴표 필드 안의 CRLF 를 셀에 그대로 담는다. */
+    private fun normalizeLineEnds(value: String): String = value.replace("\r\n", "\n").replace('\r', '\n')
+
     private fun jsonValue(cell: Cell): String = when {
         cell.type == CellType.BLANK -> "null"
         cell.type == CellType.NUMBER && cell.number != null -> plainNumber(cell.number)
@@ -131,6 +140,7 @@ object ExportFormats {
         return sb.append('"').toString()
     }
 
+    /** GFM 은 단독 CR 도 줄 끝으로 보므로 LF 만 바꾸면 표 행이 갈라진다. */
     private fun mdCell(value: String): String =
-        value.replace("|", "\\|").replace("\n", "<br>")
+        normalizeLineEnds(value).replace("|", "\\|").replace("\n", "<br>")
 }

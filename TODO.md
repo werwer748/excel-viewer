@@ -53,6 +53,12 @@
 
 - [ ] **면제 글로브가 인용 없이 `case` 에 들어간다** — `.claude/tdd-exempt.txt` 에 `*  <사유>` 한 줄이면 전 경로가 면제된다. 지금은 그 파일 수정에 `ask` 가 걸려 사람이 한 번 보게 되지만, 글로브 자체를 검증하지는 않는다.
 
+- [ ] **`SubagentStop` 매처가 플러그인 에이전트 이름과 맞지 않아 사이클 훅이 돌지 않는다** — TSV 사이클에서 처음 드러났다. `hooks.json` 의 매처는 `"sheet-reviewer"` / `"sandbox-runner"` 인데, 플러그인에 실린 에이전트의 실제 타입은 `sheetview-kit:sheet-reviewer` / `sheetview-kit:sandbox-runner` 다(`subagents/agent-*.meta.json` 의 `agentType` 으로 확인). 리뷰어가 🔴 없이 끝났는데 `review=pending` 이 그대로였다 — 파싱에 실패했다면 `unknown` 이 남았을 것이므로 **훅이 아예 불리지 않았다.** 사이클 상태는 실사용에서 한 번도 갱신된 적이 없었을 가능성이 크다.
+  `test-hooks.sh` 는 `agent_type: "sheet-reviewer"` 합성 payload 로 스크립트를 직접 부르므로 이 배선을 볼 수 없다. 후보: 매처를 비우고(모든 서브에이전트) 스크립트 안에서 `agent_type` 이 `sheet-reviewer` 로 **끝나는지** 본다 — 매처 문자열의 정확 일치·정규식 의미를 추측하지 않아도 된다. 테스트에는 `sheetview-kit:` 접두가 붙은 payload 를 추가한다.
+
+- [ ] **`cycle-stop.sh` 의 탈출구가 비동기 대기만으로 소진된다** — TSV 사이클에서 처음 드러났다. `sheet-reviewer` · `sandbox-runner` 는 **백그라운드로** 돌고, 결과를 기다리려면 턴을 끝내야 한다. 그때마다 `Stop` 이 걸려 `stop_blocked` 가 오르는데, 이 값은 **되돌아가지 않는다**. 리뷰 대기 한 번 + 검증 대기 한 번이면 한도(3)에 거의 닿고, 닿으면 탈출구 2 가 발동해 리뷰·검증 없이도 세션이 끝난다. 한도에 닿은 뒤에는 멈출 때마다 `verify=halted` 로 **덮어쓰므로** 나중에 `verify=clean` 이 기록돼도 지워진다.
+  탈출구는 "세션이 갇히는 것"을 막으려던 것인데, 실제로 소진시키는 것은 갇힘이 아니라 정상적인 대기다. 후보: 리뷰·검증 에이전트가 **돌고 있는 동안**은 되돌리지 않기(시작 표시를 상태에 남기고 `SubagentStop` 이 지운다), 또는 `review`/`verify` 가 바뀔 때 `stop_blocked` 를 0 으로 되돌리기. 한도 도달 시 `verify` 를 덮어쓰지 말고 별도 키(`halted=yes`)에 남기기.
+
 ## 샌드박스 자동 검증: 실측으로 닫힌 길
 
 같은 시도를 반복하지 않도록 남긴다. 셋 다 **직접 돌려보고** 확인했다.
@@ -72,6 +78,14 @@
   4. `cycle-stop.sh` 가 세션을 되돌리는 것이 **실제로 체감되는가**, 그리고 빠져나올 수 있는가
   5. `sandbox-verify` 가 판정 한 줄을 형식대로 내는가 → `cycle-verify.sh` 가 읽는가
   ⚠️ 한 바퀴 돌리는 동안 **하네스가 자기를 고치려 드는지** 지켜볼 것. 리뷰 지적을 없애는 가장 쉬운 길이 면제 추가이고, 그게 이 설계가 가장 경계하는 실패다. `harness_touched=yes` 가 남으면 왜 그랬는지 확인한다.
+  **2026-09-27 TSV 로 한 바퀴 돌린 결과** (항목 번호는 위 확인 목록):
+  1. 트리거됨 — "TSV로 시작하자"에 스킬을 불렀다.
+  2. 신규 파일이 테스트 파일뿐이라 `tdd-guard` 차단은 타지 않았다. `tdd-red` 는 성공 시 아무 말이 없어 **돌았는지 알 수 없다**(직접 돌려 5/8 red 를 확인했다).
+  3. **실패** — `cycle-review.sh` 가 불리지 않았다(위 '하네스에 남은 구멍'의 매처 항목).
+  4. 되돌리기는 체감된다. 다만 백그라운드 리뷰를 기다리는 것만으로 한도 3 이 소진돼 `verify=halted` 가 됐다(위 탈출구 항목).
+  5. **실패** — 같은 매처 문제로 `cycle-verify.sh` 도 불리지 않았다. `sandbox-runner` 가 "샌드박스 확인 통과" 판정을 냈지만 `verify` 는 탈출구가 덮어쓴 `halted` 그대로였다. 리뷰는 2라운드 모두 🔴 없이 끝났는데 `review=pending` 이 끝까지 바뀌지 않았다.
+  `harness_touched=yes` 는 `tdd-uncovered` 에서 `ExportFormats.kt` 를 뺀 것(사각지대 축소) 때문이다. 면제 추가는 없었다.
+  덤으로 본 것: 미커버 래칫은 테스트 파일에 클래스 **이름만 나와도** 커버로 친다. 새 테스트의 KDoc 주석이 `DelimitedReader` 를 언급하자 `check.sh` 가 "커버됐으니 목록에서 지우라"고 안내했다 — 따르면 테스트 없는 파일이 빚 목록에서 조용히 빠진다. 이번에는 주석 표현을 바꿔 피했다.
 
 - [ ] **헤드리스 테스트 확대로 면제를 줄인다** — 위가 막혔으므로 여기가 실질적인 대안이다. 조사에서 확인된 것들:
   `UIUtil.findComponentsOfType(panel, X::class).size` 로 배너 누적, 부모 확인으로 `JBLoadingPanel` 분리, `manager.splitters.getAllComposites()` 로 탭 순서, `provider.createEditor(project, file)` 직접 호출(`withContext(Dispatchers.UiWithModelAccess)` + `writeIntentReadAction` + `finally { Disposer.dispose }`).
@@ -84,7 +98,10 @@
   미리보기 / 소스 / 내부 파트 3모드, hex 덤프 폴백, JCEF 없는 환경에서는 미리보기 모드 제외.
   설계 제약(JCEF 는 optional 번들 플러그인, `Jsoup.clean` 금지, `releaseEditor` 누수 등)은 `.claude/rules/` 의 `jcef-preview.md` · `swing-editor.md` · `source-tab-light.md` 에 있다.
 
-- [ ] **TSV 내보내기** — `ExportFormats.toTsv()` 는 이미 있지만 "시트 전체 복사"의 클립보드 포맷으로만 쓰인다. `ExportFormat` enum 에 항목을 더하면 내보내기 목록에도 나온다. TDD 훅 때문에 테스트가 먼저다(기존 `ExportFormats` 테스트에 케이스 추가).
+- [x] **TSV 내보내기** — 착륙했다. `ExportFormat.TSV` 가 내보내기 목록에 나오고 내용은 클립보드 복사와 같다. `ExportFormats` 의 첫 테스트(`ExportFormatsTest`)를 붙여 `tdd-uncovered` 에서 뺐다.
+  하는 김에 줄바꿈 구멍을 막았다: `toTsv()` 는 헤더 라벨의 탭·줄바꿈을 치환하지 않았고(`ExcelHtmlReader` 가 `<br>` 을 줄바꿈으로 넣으므로 헤더에 들어올 수 있다 — 리더를 거치는 테스트로 고정), `toTsv()` 와 `toMarkdown()` 은 셀의 `\r` 을 남겼다(`DelimitedReader` 가 따옴표 필드 안의 CRLF 를 그대로 담는다).
+  남은 판단: 내보낸 CSV·TSV 는 BOM 없는 UTF-8 이라 한국어 Windows Excel 의 텍스트 가져오기에서 한글이 깨질 수 있다. BOM 을 넣으면 pandas·`cut` 쪽에서 첫 열 이름에 `﻿` 가 붙는다. 어느 쪽을 우선할지 정해야 한다.
+  같은 종류의 판단 하나 더: TSV 는 IANA 기준으로 따옴표 이스케이프가 없지만, 받는 쪽(Excel · 시트 · pandas `quotechar='"'`)은 `"` 를 따옴표로 본다. 짝 없는 `"` 로 시작하는 셀이 있으면 Python `csv.reader(delimiter="\t")` 에서 그 필드가 파일 끝까지 먹는다(리뷰어가 메모리에서 확인, Excel 붙여넣기는 미실측). Excel식 따옴표로 가면 셀 안 줄바꿈도 살릴 수 있지만 README 의 "공백으로 바뀐다"를 같이 바꿔야 한다.
 
 - [ ] **`maxCells` 상한이 두 리더에 적용되지 않는다** — `ReadLimits` 에 `maxCells` 가 선언돼 있고 `rowLimit(columnCount)` 도 있지만, 실제로 쓰는 곳은 `XlsxReader` 와 `ExcelHtmlReader` 뿐이다. `SpreadsheetMlReader` 와 `DelimitedReader` 는 `maxRows` · `maxColumns` 만 보므로 최악의 경우 선언된 상한을 훌쩍 넘는 그리드를 만들 수 있다. 입력 크기 상한(64MB)이 간접 방어로 남아 있어 당장 터지지는 않지만, 선언과 적용이 어긋난 상태다.
 
