@@ -103,3 +103,5 @@ JetBrains IDE 플러그인으로 빌드해 **ZIP 한 개로 배포**한다. 플�
 ## 개발
 
 빌드 · 작업 규약은 [AGENTS.md](AGENTS.md)(Claude Code 전용은 [CLAUDE.md](CLAUDE.md)), 영역별 설계 결정은 [`.claude/rules/`](.claude/rules/), 남은 일은 [TODO.md](TODO.md).
+
+Claude Code 로 작업한다면 clone 직후 하네스(훅·스킬·에이전트)를 먼저 설치한다 — 설치하지 않으면 아무것도 막지 않는다. 방법은 [plugins/sheetview-kit/README.md](plugins/sheetview-kit/README.md).

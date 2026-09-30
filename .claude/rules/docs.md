@@ -17,7 +17,7 @@ paths:
 | 문서 | 올라오는 시점 | 담는 것 |
 |---|---|---|
 | `AGENTS.md` | 세션 시작 — 항상 (Claude Code 는 `CLAUDE.md` 의 `@AGENTS.md` 로) | 어느 에이전트 도구에나 참인 것: 모르고 하면 되돌릴 수 없는 것 · 게이트 · 빌드와 커밋 절차 · 영역 규칙 색인 |
-| `CLAUDE.md` | 세션 시작 — 항상 | Claude Code 에만 있는 것: 하네스 설치 · 훅이 강제하는 것 · 스킬 진입점 · 규칙이 붙는 방식 |
+| `CLAUDE.md` | 세션 시작 — 항상 | Claude Code 에만 있고 훅·스킬이 대신 말해 주지 않는 것: Read 툴과 규칙이 붙는 방식. 훅이 강제하는 것·스킬 진입점은 훅 메시지와 스킬 description 이 전달하므로 적지 않는다 |
 | `.claude/rules/*.md` | 매칭 파일을 **Read 할 때** | 영역별 "되돌리면 안 되는 결정"과 그 측정 근거 |
 | `plugins/sheetview-kit/skills/*/SKILL.md` | 스킬을 부를 때 | 절차 — 사이클(`feature-cycle`) · 리뷰(`spreadsheet-review`, 코드 지도 포함) · 샌드박스(`sandbox-verify` / `sandbox-run`) |
 | `plugins/sheetview-kit/README.md` | 작업 도구 자체를 고칠 때 직접 연다 | 훅·스킬·에이전트 목록 · 프로젝트에 남는 상태 |
