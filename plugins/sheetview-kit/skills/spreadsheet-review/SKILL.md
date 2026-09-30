@@ -197,7 +197,7 @@ description: Spreadsheet Viewer(JetBrains 플러그인, Kotlin) 코드를 리뷰
   diff 에 게이트 파일(`.claude/tdd-exempt.txt`·`tdd-uncovered`·`tdd-baseline`)이 있으면 **면제나 미커버 목록이 늘었는지만** 본다.
   줄어든 것은 정상이다.
 - **`tdd-baseline` 을 갱신했는지** — 커밋 절차이고, `check.sh` 가 올릴 값을 안내한다.
-- **문서에 적힌 개수·숫자가 맞는지** — CLAUDE.md 가 문서에 개수를 하드코딩하지 말라고 정해 두었다. 그런 숫자를 찾아 grep 하지 않는다.
+- **문서에 적힌 개수·숫자가 맞는지** — `.claude/rules/docs.md` 가 문서에 개수를 하드코딩하지 말라고 정해 두었다. 그런 숫자를 찾아 grep 하지 않는다.
 - **예외: 사용자에게 보이는 문구.** diff 가 사용자에게 보이는 목록이나 문구(내보내기 형식, 지원 확장자 등)를 바꿨으면
   옛 문구로 **한 번** grep 해서 `plugin.xml` 의 `<description>` 과 README 에 옛 문구가 남았는지 본다.
   TSV 를 추가할 때 이 확인으로 `plugin.xml` 설명문에서 TSV 가 빠진 것을 잡았다.

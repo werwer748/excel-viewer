@@ -24,5 +24,6 @@ paths:
 
 ## 빌드 환경
 
+- **`verifyPlugin` 은 `plugin.xml` · `build.gradle.kts` · 플랫폼 API 를 건드렸을 때만** 돌린다. 몇 분 걸린다. 생략했으면 그 사실을 보고에 적는다.
 - **JDK 25 가 필요하다.** 플랫폼 262 클래스가 Java 25 바이트코드(major 69)다. 없으면 foojay 리졸버가 받아 오고, 플랫폼 의존성도 지정이 없으면 원격 아티팩트를 받는다 — clone 직후 아무 설정 없이 빌드된다.
 - **개인 경로는 저장소에 두지 않는다.** `~/.gradle/gradle.properties` 에 `org.gradle.java.installations.paths` / `localIdePath` / `verifyIdePaths` 를 넣으면 ~1GB 다운로드가 사라진다(설치된 IDE의 번들 JBR이 `javac 25` 를 포함한 완전한 JDK다). 저장소의 `gradle.properties` 에는 빈 키와 설명만 있다.
