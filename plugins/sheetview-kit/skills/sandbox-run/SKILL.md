@@ -110,7 +110,7 @@ IDE 접두어(`WS-2026.2.3`)는 `~/.gradle/gradle.properties` 의 `localIdePath`
 ./gradlew runIde
 ```
 
-**반드시 `run_in_background: true` 로 부른다.** 이 한 줄을 포그라운드로 부르는 순간 세션이 IDE 수명 내내 멈추고 이 절차 전체가 무의미해진다. `AGENTS.md` 의 runIde 금지 조항에 `CLAUDE.md` 가 예외를 두는 것도 이 조건 하나 때문이다.
+**반드시 `run_in_background: true` 로 부른다.** 이 한 줄을 포그라운드로 부르는 순간 세션이 IDE 수명 내내 멈추고 이 절차 전체가 무의미해진다. `AGENTS.md` 가 runIde 를 금지하는 것도 포그라운드이기 때문이다.
 
 기동 확인은 폴링으로 한다 (~150초까지 기다린다. `localIdePath` 가 없어 원격 IDE 아티팩트를 받아야 하면 훨씬 더 걸릴 수 있고, 그건 실패가 아니다):
 
