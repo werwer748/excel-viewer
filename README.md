@@ -102,4 +102,4 @@ JetBrains IDE 플러그인으로 빌드해 **ZIP 한 개로 배포**한다. 플�
 
 ## 개발
 
-빌드 · 작업 규약은 [CLAUDE.md](CLAUDE.md), 영역별 설계 결정은 [`.claude/rules/`](.claude/rules/), 남은 일은 [TODO.md](TODO.md).
+빌드 · 작업 규약은 [AGENTS.md](AGENTS.md)(Claude Code 전용은 [CLAUDE.md](CLAUDE.md)), 영역별 설계 결정은 [`.claude/rules/`](.claude/rules/), 남은 일은 [TODO.md](TODO.md).

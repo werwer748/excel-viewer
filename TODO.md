@@ -1,7 +1,7 @@
 # TODO
 
 각 줄에 **왜 필요한지**를 같이 적는다. 근거 없는 할 일은 나중에 판단할 수 없다.
-빌드 규약은 [CLAUDE.md](CLAUDE.md), 영역별 설계 결정은 [`.claude/rules/`](.claude/rules/)에 있다.
+빌드 규약은 [AGENTS.md](AGENTS.md), 영역별 설계 결정은 [`.claude/rules/`](.claude/rules/)에 있다.
 
 ## 마켓플레이스 등록까지 해야 할 일
 
