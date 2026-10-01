@@ -24,6 +24,9 @@ jobs:
       - uses: actions/checkout@v4
       - name: 훅 자체 테스트
         run: sh plugins/sheetview-kit/scripts/test-hooks.sh
+      # pr-review.yml 의 점수 판정. 틀리면 70점 미만 PR 이 조용히 머지된다.
+      - name: PR 리뷰 게이트 테스트
+        run: sh .github/scripts/test-pr-review-gate.sh
 
   build:
     runs-on: ubuntu-latest

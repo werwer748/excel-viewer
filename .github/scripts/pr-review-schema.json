@@ -1,0 +1,23 @@
+{
+  "type": "object",
+  "properties": {
+    "scores": {
+      "type": "object",
+      "properties": {
+        "security": { "type": "integer" },
+        "scope": { "type": "integer" },
+        "breaking_change": { "type": "integer" },
+        "test_coverage": { "type": "integer" },
+        "migration": { "type": "integer" }
+      },
+      "required": ["security", "scope", "breaking_change", "test_coverage", "migration"],
+      "additionalProperties": false
+    },
+    "report": {
+      "type": "string",
+      "description": "PR 코멘트에 그대로 실리는 마크다운. 기준별 감점 근거."
+    }
+  },
+  "required": ["scores", "report"],
+  "additionalProperties": false
+}
