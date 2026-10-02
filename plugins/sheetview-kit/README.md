@@ -24,7 +24,8 @@ Spreadsheet Viewer 저장소에서 쓰는 작업 도구 — 훅 · 스킬 · 에
 | `tdd-guard.sh` | `PreToolUse` (쓰기 툴 전체) | 본체 `.kt` **신규 생성**에 테스트를 요구한다. 게이트 자신을 고치려 하면 브랜치마다 한 번 `ask` |
 | `tdd-guard.sh ack` | `PostToolUse` (쓰기 툴 전체) | 승인된 게이트 수정이 실제로 돈 뒤 승인 표시를 남긴다 |
 | `branch-guard.sh` | `PreToolUse` (쓰기 툴 전체) | `main`/`master` 에서 소스를 고치려 하면 한 번 `ask` |
-| `pre-commit-check.sh` | `PreToolUse(Bash)` | 커밋 앞에서 `scripts/check.sh` 를 돌린다 |
+| `safety-guard.sh` | `PreToolUse` (Bash · Read · Grep · 쓰기 툴 · MCP) | 되돌릴 수 없는 실수를 `deny` 한다: 위험한 대상의 `rm -r` · `.env` 읽기 · 키 리터럴 · 비밀을 찍는 명령 · `git push --force` |
+| `pre-commit-check.sh` | `PreToolUse(Bash)` | 커밋 앞에서 키로 보이는 문자열을 찾고, `scripts/check.sh` 를 돌린다 |
 | `tdd-red.sh` | `PostToolUse` | 새 테스트가 **실패(red)하는지** 확인한다 |
 | `cycle-review.sh` | `SubagentStop((^\|:)sheet-reviewer$)` | 리뷰 보고의 `### 🔴` 를 세어 사이클 상태에 기록 |
 | `cycle-verify.sh` | `SubagentStop((^\|:)sandbox-runner$)` | 샌드박스 판정 줄을 읽어 사이클 상태에 기록 |

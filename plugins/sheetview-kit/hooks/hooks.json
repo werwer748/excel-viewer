@@ -15,6 +15,16 @@
     ],
     "PreToolUse": [
       {
+        "matcher": "Bash|Read|Grep|Write|Edit|MultiEdit|NotebookEdit|mcp__.*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/hooks/safety-guard.sh\"",
+            "timeout": 20
+          }
+        ]
+      },
+      {
         "matcher": "Bash",
         "hooks": [
           {
