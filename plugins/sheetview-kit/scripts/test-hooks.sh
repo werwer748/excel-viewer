@@ -361,6 +361,15 @@ if [ -e "$HA/$HARNESS_ACK" ]; then bad "묻기만 했는데 표시를 남겼다 
 else ok "묻는 것만으로는 표시를 남기지 않는다"; fi
 ha_case "승인 전에는 다시 묻는다" ask "$HA_HOOK"
 
+# 표시 파일 자신도 게이트다. 아니면 모델이 브랜치 이름을 직접 써 넣어 승인을 위조한다 —
+# 사람이 한 번도 승인하지 않았는데 면제·래칫 수정이 조용히 지나간다.
+HA_FORGE=$(bashpay "printf work > .claude/.harness-ack")
+ha_case "Bash 로 승인 표시를 직접 쓰려 하면 묻는다" ask "$HA_FORGE"
+ha_case "Write 로 승인 표시를 쓰려 해도 묻는다" ask "$(payload Write "$HA/$HARNESS_ACK")"
+ha_ack "$HA_FORGE"
+if [ -e "$HA/$HARNESS_ACK" ]; then bad "표시 파일을 쓴 것으로 표시를 남겼다 ($(ha_memo))"
+else ok "표시 파일을 쓴 것은 승인으로 치지 않는다"; fi
+
 # 사이클은 .cycle-state 를 쓰는 것으로 시작한다. 그 승인이 면제 수정까지 열어 주면 안 된다.
 ha_ack "$(bashpay "printf 'review=pending\n' > .claude/.cycle-state")"
 ha_ack "$(payload Edit "$HA/README.md")"

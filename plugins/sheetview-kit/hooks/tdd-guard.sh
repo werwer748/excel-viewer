@@ -107,6 +107,8 @@ for v in out:
 is_harness_file() {
   case "$1" in
     .claude/tdd-exempt.txt|.claude/tdd-baseline|.claude/tdd-uncovered|.claude/.cycle-state) return 0 ;;
+    # 승인 표시 자신. 빠져 있으면 모델이 브랜치 이름을 직접 써 넣어 승인을 위조한다.
+    .claude/.harness-ack) return 0 ;;
     plugins/sheetview-kit/hooks/*|plugins/sheetview-kit/scripts/*) return 0 ;;
     scripts/check.sh) return 0 ;;
   esac
@@ -135,7 +137,11 @@ check_one() {
   # 게이트 자신이면 여기서는 통과시키고, 호출한 쪽이 ask 로 올린다.
   if is_harness_file "$rel"; then
     harness_hit="$harness_hit $rel"
-    [ "$rel" = ".claude/.cycle-state" ] || gate_hit=yes
+    # 사이클 상태 파일과 승인 표시를 쓴 것은 승인으로 치지 않는다 (아래 ack 모드).
+    case "$rel" in
+      .claude/.cycle-state|.claude/.harness-ack) ;;
+      *) gate_hit=yes ;;
+    esac
     return 0
   fi
 
