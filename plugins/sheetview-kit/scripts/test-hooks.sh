@@ -714,6 +714,10 @@ ag_case "주석에 /tmp 를 적어도"               deny  $RUNNER   'echo x > s
 ag_case "runIde (샌드박스 러너)"              allow $RUNNER   './gradlew runIde'
 ag_case "runIde (리뷰어는 금지)"              deny  $REVIEWER './gradlew runIde'
 ag_case "샌드박스 스크립트 실행"              allow $RUNNER   'sh plugins/sheetview-kit/scripts/sandbox-up.sh status'
+# pr-reviewer 는 남이 쓴 PR 제목·설명·diff 를 읽는다. 로컬에서 부르면 CI 의 허용 목록이 없다.
+ag_case "pr-reviewer 도 쓰기는 금지"          deny  sheetview-kit:pr-reviewer 'echo x > src/main/x.kt'
+ag_case "pr-reviewer 도 runIde 는 금지"       deny  sheetview-kit:pr-reviewer './gradlew runIde'
+ag_case "pr-reviewer 의 git diff 는 읽기다"   allow sheetview-kit:pr-reviewer 'git diff main...HEAD'
 ag_case "메인 세션은 대상이 아니다"           allow ""        'rm -rf build'
 ag_case "다른 에이전트도 대상이 아니다"       allow Explore   'rm -rf build'
 ag_case "깨진 따옴표는 판단 불가 -> 통과"     allow $REVIEWER 'grep "unclosed'
