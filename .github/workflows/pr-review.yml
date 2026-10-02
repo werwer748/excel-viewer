@@ -43,18 +43,33 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha }}
 
-      # 코드를 건드린 PR 만 채점한다. 문서 · 훅만 고친 PR 은 여기서 끝나고 잡은 통과한다.
-      # 리뷰어 자신을 고친 PR 은 채점한다 — 고친 리뷰어가 도는지 그 PR 에서 확인된다.
+      # 코드나 게이트를 건드린 PR 만 채점한다. 문서만 고친 PR 은 여기서 끝나고 잡은 통과한다.
+      # 게이트(래칫 파일 · check.sh · 훅 · 워크플로 · 채점표)가 대상인 이유: 채점표의 Scope 가 게이트 완화를
+      # 🔴 로 잡는데, 이 필터가 그 경로를 빼면 완화만 한 PR 이 채점 없이 통과한다.
       - name: 코드 PR 인가
         id: scope
         run: |
           files=$(gh pr diff "$PR" --name-only)
-          if printf '%s\n' "$files" | grep -qE '^(src/|gradle/|build\.gradle\.kts$|settings\.gradle\.kts$|gradle\.properties$|plugins/sheetview-kit/agents/pr-reviewer\.md$|\.github/scripts/pr-review|\.github/workflows/pr-review\.yml$)'; then
+          if printf '%s\n' "$files" | grep -qE '^(src/|gradle/|build\.gradle\.kts$|settings\.gradle\.kts$|gradle\.properties$|scripts/check\.sh$|\.claude/tdd-|\.github/|plugins/sheetview-kit/(agents/pr-reviewer\.md$|hooks/|scripts/))'; then
             echo "code=true" >> "$GITHUB_OUTPUT"
           else
             echo "code=false" >> "$GITHUB_OUTPUT"
             echo "코드 변경이 없어 채점하지 않습니다."
           fi
+
+      # 채점자(에이전트 · 스키마 · 게이트 스크립트)는 PR head 가 아니라 base 에서 가져온다.
+      # head 의 것을 쓰면 채점표를 고친 PR 이 고친 채점표로 자기를 통과시킨다. 그래서 리뷰어를 고친 PR 은
+      # 고치기 전 리뷰어가 채점한다 — 고친 리뷰어는 푸시하기 전에 로컬에서 같은 명령으로 돌려 본다.
+      # 작업 트리 밖에 풀어서 리뷰 대상에 섞이지 않게 한다.
+      # 이 워크플로 파일 자체는 `pull_request` 트리거라 여전히 PR 의 것이 돈다. 여기까지 막지는 못한다.
+      - name: 채점자를 base 에서 가져온다
+        if: steps.scope.outputs.code == 'true'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          git fetch --depth=1 origin "$BASE_SHA"
+          mkdir -p "$RUNNER_TEMP/base"
+          git archive "$BASE_SHA" plugins/sheetview-kit .github/scripts | tar -x -C "$RUNNER_TEMP/base"
 
       - name: Claude Code 설치
         if: steps.scope.outputs.code == 'true'
@@ -76,11 +91,11 @@ jobs:
         # dontAsk: 아래 허용 목록과 읽기 전용 명령 말고는 전부 거절한다. 물어볼 사람이 없다.
         run: |
           claude -p "$PROMPT" \
-            --plugin-dir plugins/sheetview-kit \
+            --plugin-dir "$RUNNER_TEMP/base/plugins/sheetview-kit" \
             --agent sheetview-kit:pr-reviewer \
             --permission-mode dontAsk \
             --allowedTools "Bash(gh pr view *)" "Bash(gh pr diff *)" "Bash(git diff *)" "Bash(git log *)" "Bash(git show *)" \
-            --json-schema "$(cat .github/scripts/pr-review-schema.json)" \
+            --json-schema "$(cat "$RUNNER_TEMP/base/.github/scripts/pr-review-schema.json")" \
             --output-format json > "$RUNNER_TEMP/review.json"
 
       # 코멘트는 PR 당 하나를 갱신한다. 푸시마다 새로 달면 낡은 점수가 쌓인다.
@@ -94,7 +109,7 @@ jobs:
           fi
 
           code=0
-          printf '%s' "$result" | sh .github/scripts/pr-review-gate.sh "$RUNNER_TEMP/comment.md" || code=$?
+          printf '%s' "$result" | sh "$RUNNER_TEMP/base/.github/scripts/pr-review-gate.sh" "$RUNNER_TEMP/comment.md" || code=$?
 
           id=$(gh api "repos/$GH_REPO/issues/$PR/comments" --paginate \
             --jq '.[] | select(.body | startswith("<!-- pr-reviewer -->")) | .id' | head -n 1)
