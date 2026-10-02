@@ -64,6 +64,16 @@
             "statusMessage": "TDD: 새 테스트가 실패하는지(red) 확인 중"
           }
         ]
+      },
+      {
+        "matcher": "Write|Edit|MultiEdit|NotebookEdit|Bash|mcp__.*__(create|write|apply|edit|execute|rename|reformat|patch|move|delete)",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/hooks/tdd-guard.sh\" ack",
+            "timeout": 30
+          }
+        ]
       }
     ],
     "SubagentStop": [
