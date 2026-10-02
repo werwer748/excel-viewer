@@ -13,6 +13,7 @@
 # 메인 세션(agent_type 없음)과 다른 에이전트는 이 훅의 대상이 아니다.
 #
 #   *:sheet-reviewer   쓰기 전부 + runIde 거절 (리뷰는 코드를 읽는 일이다)
+#   *:pr-reviewer      위와 같다. CI 는 허용 목록이 막아 주지만 로컬에서 부르면 이 훅뿐이다
 #   *:sandbox-runner   쓰기 전부 거절. runIde 는 이 에이전트의 일이라 허용
 #
 # 명령은 셸 토큰으로 읽는다. 정규식으로 명령 문자열 전체를 훑던 동안 두 방향으로 틀렸다:
@@ -40,7 +41,7 @@ if not isinstance(d, dict):
     sys.exit(1)
 
 agent = str(d.get("agent_type") or "")
-if re.search(r"(^|:)sheet-reviewer$", agent):
+if re.search(r"(^|:)(sheet-reviewer|pr-reviewer)$", agent):
     no_runide = True
 elif re.search(r"(^|:)sandbox-runner$", agent):
     no_runide = False

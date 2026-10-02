@@ -28,7 +28,7 @@ Spreadsheet Viewer 저장소에서 쓰는 작업 도구 — 훅 · 스킬 · 에
 | `cycle-review.sh` | `SubagentStop((^\|:)sheet-reviewer$)` | 리뷰 보고의 `### 🔴` 를 세어 사이클 상태에 기록 |
 | `cycle-verify.sh` | `SubagentStop((^\|:)sandbox-runner$)` | 샌드박스 판정 줄을 읽어 사이클 상태에 기록 |
 | `cycle-stop.sh` | `Stop` | 사이클이 안 끝났으면 세션을 되돌린다. 리뷰어·러너가 도는 동안은 기다린다 (탈출구 3중) |
-| `agent-guard.sh` | `PreToolUse(Bash)` | 입력의 `agent_type` 이 두 에이전트일 때만, `sed -i`·리다이렉션 등으로 파일을 못 바꾸게 한다 |
+| `agent-guard.sh` | `PreToolUse(Bash)` | 입력의 `agent_type` 이 아래 에이전트일 때만, `sed -i`·리다이렉션 등으로 파일을 못 바꾸게 한다 |
 
 **쓰기 툴 matcher 에는 MCP 도구가 포함된다** (`mcp__*__create|write|apply|…`). `Write` 만 막으면 `mcp__webstorm__create_new_file` 로 그냥 빠져나간다.
 
@@ -49,7 +49,7 @@ Spreadsheet Viewer 저장소에서 쓰는 작업 도구 — 훅 · 스킬 · 에
 |---|---|
 | `sheet-reviewer` | 코드 리뷰. `runIde` 를 포함해 쓰기 명령이 전부 거절된다 |
 | `sandbox-runner` | 샌드박스 기동. `runIde` 는 허용되고 쓰기만 거절된다 |
-| `pr-reviewer` | PR 을 다섯 기준 100점 만점으로 채점. CI 의 `pr-review.yml` 이 `--agent` 로 부른다. Edit·Write 는 없지만 `agent-guard` 대상은 아직 아니다 |
+| `pr-reviewer` | PR 을 다섯 기준 100점 만점으로 채점. CI 의 `pr-review.yml` 이 `--agent` 로 부른다. `sheet-reviewer` 처럼 `runIde` 를 포함해 쓰기 명령이 전부 거절된다 |
 
 ## 스크립트
 
