@@ -23,6 +23,7 @@ export CLAUDE_PROJECT_DIR="$PROJECT_DIR"
 GUARD="$PLUGIN_DIR/hooks/tdd-guard.sh"
 REDH="$PLUGIN_DIR/hooks/tdd-red.sh"
 NEW_TESTS=".claude/.tdd-new"
+HARNESS_ACK=".claude/.harness-ack"
 SRC="$PROJECT_DIR/src/main/kotlin/dev/hugo/sheetview"
 TST="$PROJECT_DIR/src/test/kotlin/dev/hugo/sheetview"
 
@@ -35,6 +36,7 @@ cleanup() {
   # 중간에 끊겨도 원본 .tdd-new 를 돌려놓는다. 안 그러면 .tdd-new.saved 가
   # 워킹트리에 유령으로 남는다 (gitignore 되지 않는 이름이다).
   [ -f "$NEW_TESTS.saved" ] && mv -f "$NEW_TESTS.saved" "$NEW_TESTS"
+  [ -f "$HARNESS_ACK.saved" ] && mv -f "$HARNESS_ACK.saved" "$HARNESS_ACK"
   # 프로세스 판정 테스트가 띄운 탐침이 남지 않게 한다.
   for _p in $PROBE_PIDS; do kill "$_p" 2>/dev/null; done
   return 0
@@ -43,6 +45,8 @@ trap cleanup EXIT INT TERM
 
 # .tdd-new 를 건드리므로 원본을 잠시 치워 둔다.
 [ -f "$NEW_TESTS" ] && mv "$NEW_TESTS" "$NEW_TESTS.saved"
+# 이 브랜치의 승인 표시가 남아 있으면 아래 "게이트 자신 -> ask" 검사가 조용해진다. 같이 치워 둔다.
+[ -f "$HARNESS_ACK" ] && mv "$HARNESS_ACK" "$HARNESS_ACK.saved"
 
 ok()  { pass=$((pass + 1)); printf '  ok    %s\n' "$1"; }
 bad() { fail=$((fail + 1)); printf '  FAIL  %s\n' "$1"; }
@@ -156,6 +160,15 @@ for name in sorted(agents):
 pre_bash = [e for e in hooks.get("PreToolUse", []) if matches(e.get("matcher", ""), "Bash")]
 check(any("agent-guard.sh" in scripts_of(e) for e in pre_bash),
       "agent-guard.sh 가 PreToolUse(Bash) 에 걸려 있다")
+
+# 3b. tdd-guard 의 ack 모드는 PostToolUse 에, 쓰기 툴 전체에 걸려 있어야 한다. 승인 표시는
+#     툴이 실제로 돈 뒤에만 남는다 — 이 배선이 빠지면 표시가 영영 안 생겨 다시 매번 묻는다.
+acks = [e for e in hooks.get("PostToolUse", [])
+        if any(re.search(r'hooks/tdd-guard\.sh"? ack\b', h.get("command", "")) for h in e.get("hooks", []))]
+check(len(acks) == 1, "tdd-guard.sh ack 가 PostToolUse 에 한 번 걸려 있다")
+for e in acks:
+    for tool in ("Edit", "Write", "Bash"):
+        check(matches(e.get("matcher", ""), tool), f"tdd-guard.sh ack 매처가 {tool} 에 맞는다")
 
 # 4. 배선된 스크립트가 전부 실제로 있다.
 for event in sorted(hooks):
@@ -325,6 +338,76 @@ ask_case "Bash 로 면제 목록에 덧붙이기 -> ask" ask \
   "$(bashpay "echo '*  whatever' >> $PROJECT_DIR/.claude/tdd-exempt.txt")"
 ask_case "평범한 본체 수정은 ask 아님" silent "$(payload Edit "$SRC/format/XlsxReader.kt")"
 ask_case "README 수정은 ask 아님" silent "$(payload Edit "$PROJECT_DIR/README.md")"
+
+echo "tdd-guard.sh — 게이트 수정은 브랜치마다 한 번만 묻는다"
+
+# 표시(.harness-ack)는 묻는 순간이 아니라 **승인된 수정이 실제로 돈 뒤**(PostToolUse, ack 모드)에
+# 남는다. 묻는 순간에 남기면 사람이 거절한 뒤의 수정이 전부 조용히 통과한다.
+HA=$(synth_project)
+( cd "$HA" && git init -q -b work . && git config user.email t@t && git config user.name t &&
+  git commit -q --allow-empty -m init ) >/dev/null 2>&1
+ha_pre() { printf '%s' "$1" | (cd "$HA" && CLAUDE_PROJECT_DIR="$HA" sh "$GUARD" 2>/dev/null); }
+ha_ack() { printf '%s' "$1" | (cd "$HA" && CLAUDE_PROJECT_DIR="$HA" sh "$GUARD" ack >/dev/null 2>&1); }
+ha_memo() { cat "$HA/$HARNESS_ACK" 2>/dev/null; }
+ha_case() {   # <설명> <ask|silent> <payload>
+  case "$(ha_pre "$3")" in *'"permissionDecision": "ask"'*) got=ask ;; *) got=silent ;; esac
+  if [ "$got" = "$2" ]; then ok "$1"; else bad "$1  (기대 $2, 실제 $got)"; fi
+}
+HA_HOOK=$(payload Edit "$HA/plugins/sheetview-kit/hooks/tdd-guard.sh")
+HA_EXEMPT=$(payload Edit "$HA/.claude/tdd-exempt.txt")
+
+ha_case "처음 고치면 묻는다" ask "$HA_HOOK"
+if [ -e "$HA/$HARNESS_ACK" ]; then bad "묻기만 했는데 표시를 남겼다 (거절해도 조용해진다)"
+else ok "묻는 것만으로는 표시를 남기지 않는다"; fi
+ha_case "승인 전에는 다시 묻는다" ask "$HA_HOOK"
+
+# 표시 파일 자신도 게이트다. 아니면 모델이 브랜치 이름을 직접 써 넣어 승인을 위조한다 —
+# 사람이 한 번도 승인하지 않았는데 면제·래칫 수정이 조용히 지나간다.
+HA_FORGE=$(bashpay "printf work > .claude/.harness-ack")
+ha_case "Bash 로 승인 표시를 직접 쓰려 하면 묻는다" ask "$HA_FORGE"
+ha_case "Write 로 승인 표시를 쓰려 해도 묻는다" ask "$(payload Write "$HA/$HARNESS_ACK")"
+ha_ack "$HA_FORGE"
+if [ -e "$HA/$HARNESS_ACK" ]; then bad "표시 파일을 쓴 것으로 표시를 남겼다 ($(ha_memo))"
+else ok "표시 파일을 쓴 것은 승인으로 치지 않는다"; fi
+
+# 사이클은 .cycle-state 를 쓰는 것으로 시작한다. 그 승인이 면제 수정까지 열어 주면 안 된다.
+ha_ack "$(bashpay "printf 'review=pending\n' > .claude/.cycle-state")"
+ha_ack "$(payload Edit "$HA/README.md")"
+if [ -e "$HA/$HARNESS_ACK" ]; then bad "게이트가 아닌 수정으로 표시를 남겼다 ($(ha_memo))"
+else ok "사이클 상태 파일·무관한 파일은 승인으로 치지 않는다"; fi
+
+ha_ack "$HA_HOOK"
+if [ "$(ha_memo)" = "work" ]; then ok "승인된 수정이 돈 뒤 브랜치 이름을 남긴다"
+else bad "승인된 수정이 돌았는데 표시가 없다 ($(ha_memo))"; fi
+ha_case "같은 브랜치에서는 다시 묻지 않는다" silent "$HA_HOOK"
+ha_case "면제 목록도 같은 표시로 조용하다" silent "$HA_EXEMPT"
+
+# 묻지 않아도 사이클에는 남는다 — cycle-stop 이 마지막에 알린다.
+printf 'review=pending\nharness_touched=no\n' > "$HA/.claude/.cycle-state"
+ha_pre "$HA_EXEMPT" >/dev/null
+if [ "$(sed -n 's/^harness_touched=//p' "$HA/.claude/.cycle-state")" = "yes" ]; then
+  ok "묻지 않아도 harness_touched=yes 는 남는다"
+else bad "표시가 있다고 사이클 기록까지 건너뛰었다"; fi
+rm -f "$HA/.claude/.cycle-state"
+
+( cd "$HA" && git switch -q -c other ) >/dev/null 2>&1
+ha_case "브랜치를 바꾸면 다시 묻는다" ask "$HA_HOOK"
+
+# detached HEAD 는 어느 커밋이든 이름이 "HEAD" 다. 표시를 믿지도 남기지도 않는다.
+( cd "$HA" && git checkout -q --detach ) >/dev/null 2>&1
+printf 'HEAD' > "$HA/$HARNESS_ACK"
+ha_case "detached HEAD 는 표시가 있어도 묻는다" ask "$HA_HOOK"
+rm -f "$HA/$HARNESS_ACK"
+ha_ack "$HA_HOOK"
+if [ -e "$HA/$HARNESS_ACK" ]; then bad "detached HEAD 에서 표시를 남겼다 ($(ha_memo))"
+else ok "detached HEAD 에서는 표시를 남기지 않는다"; fi
+
+# git 저장소가 아니면 브랜치를 모른다 — 매번 묻는다.
+rm -rf "$HA/.git"
+ha_ack "$HA_HOOK"
+ha_case "브랜치를 모르면 매번 묻는다" ask "$HA_HOOK"
+
+rm -rf "$HA"
 
 # ─────────────────────────────────────────────────────────────────────────────
 echo "_common.sh — package 선언 읽기"

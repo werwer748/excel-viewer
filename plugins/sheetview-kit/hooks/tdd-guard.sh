@@ -14,10 +14,15 @@
 #  4. **게이트 자신을 고치는 것은 막지 않고 사람에게 올린다.** 면제 목록·래칫·훅 스크립트는
 #     전부 이 게이트 밖에 있어서 모델이 자유롭게 고칠 수 있었다. 차단하면 리팩터가
 #     불가능해지므로 차단하지 않는다 — 대신 `ask` 로 올려 사람이 한 번 보게 한다.
+#     **브랜치마다 한 번이다.** 수정마다 물었더니 하네스를 고치는 작업 내내 창이 떴다.
+#     승인 표시(.claude/.harness-ack)는 묻는 순간이 아니라 승인된 수정이 실제로 돈 뒤에
+#     남긴다 — 같은 스크립트가 PostToolUse 에서 `ack` 인자로 한 번 더 불린다. 묻는 순간에
+#     남기면 사람이 거절한 뒤의 수정이 전부 조용히 통과한다.
 #
 # 이건 git 훅이 아니라 Claude Code 훅이다. 사람이 에디터로 직접 만드는 파일은 막지 않는다.
 set -u
 
+MODE=${1:-}
 payload=$(cat)
 
 # 프로젝트 루트는 _common.sh 가 마커(gradlew + 소스 루트)로 찾는다. 스크립트 위치에서
@@ -30,6 +35,7 @@ SRC_ROOT="$SHEETVIEW_SRC_ROOT"
 TEST_ROOT="$SHEETVIEW_TEST_ROOT"
 EXEMPT="$PROJECT_DIR/.claude/tdd-exempt.txt"
 NEW_TESTS="$PROJECT_DIR/.claude/.tdd-new"
+HARNESS_ACK="$PROJECT_DIR/.claude/.harness-ack"
 
 # 검사할 경로 후보를 줄 단위로 뽑는다.
 targets=$(printf '%s' "$payload" | python3 -c '
@@ -101,10 +107,20 @@ for v in out:
 is_harness_file() {
   case "$1" in
     .claude/tdd-exempt.txt|.claude/tdd-baseline|.claude/tdd-uncovered|.claude/.cycle-state) return 0 ;;
+    # 승인 표시 자신. 빠져 있으면 모델이 브랜치 이름을 직접 써 넣어 승인을 위조한다.
+    .claude/.harness-ack) return 0 ;;
     plugins/sheetview-kit/hooks/*|plugins/sheetview-kit/scripts/*) return 0 ;;
     scripts/check.sh) return 0 ;;
   esac
   return 1
+}
+
+# 승인 표시에 적는 브랜치 이름. 모르면(git 실패) 빈 값이고, 그때는 표시를 믿지도 남기지도
+# 않아 매번 묻는다. detached HEAD 도 모르는 것으로 친다 — 어느 커밋이든 이름이 "HEAD" 라서
+# 한 번 승인하면 영영 조용해진다.
+harness_branch() {
+  _b=$(git -C "$PROJECT_DIR" rev-parse --abbrev-ref HEAD 2>/dev/null) || return 0
+  [ "$_b" = HEAD ] || printf '%s' "$_b"
 }
 
 # ---------------------------------------------------------------- 후보 1개 판정
@@ -121,8 +137,16 @@ check_one() {
   # 게이트 자신이면 여기서는 통과시키고, 호출한 쪽이 ask 로 올린다.
   if is_harness_file "$rel"; then
     harness_hit="$harness_hit $rel"
+    # 사이클 상태 파일과 승인 표시를 쓴 것은 승인으로 치지 않는다 (아래 ack 모드).
+    case "$rel" in
+      .claude/.cycle-state|.claude/.harness-ack) ;;
+      *) gate_hit=yes ;;
+    esac
     return 0
   fi
+
+  # ack 모드는 이미 돈 툴을 본다. 판정할 것이 없다.
+  [ "$MODE" = ack ] && return 0
 
   # 새 테스트 파일이면 tdd-red.sh 가 "red 를 거쳤는지" 판정할 수 있게 표시를 남기고 통과.
   case "$rel" in
@@ -199,6 +223,7 @@ check_one() {
 # 파이프라인 안의 while 은 서브셸에서 돌아 종료 코드가 전파되지 않는다. IFS 로 돈다.
 blocked=0
 harness_hit=""
+gate_hit=""
 saved_ifs=$IFS
 IFS='
 '
@@ -210,6 +235,20 @@ for t in $targets; do
 '
 done
 IFS=$saved_ifs
+
+# ack 모드(PostToolUse): 툴이 실제로 돌았다 = 사람이 승인했다. 이때만 표시를 남긴다.
+# 사이클 상태 파일만 쓴 것은 치지 않는다 — 사이클은 그 파일을 쓰는 것으로 시작하는데,
+# 그 승인이 면제 수정까지 열어 주면 안 된다.
+if [ "$MODE" = ack ]; then
+  if [ -n "$gate_hit" ]; then
+    branch=$(harness_branch)
+    if [ -n "$branch" ]; then
+      mkdir -p "$PROJECT_DIR/.claude" 2>/dev/null
+      printf '%s' "$branch" > "$HARNESS_ACK" 2>/dev/null
+    fi
+  fi
+  exit 0
+fi
 
 # TDD 위반이 우선이다. 막을 것이 있으면 ask 까지 갈 것도 없다.
 [ "$blocked" = 0 ] || exit 2
@@ -226,6 +265,12 @@ if [ -n "$harness_hit" ]; then
     fi
     break
   done
+  # 이 브랜치에서 이미 승인했으면 다시 묻지 않는다. 위의 사이클 기록은 그래도 남는다 —
+  # 묻지 않은 수정도 cycle-stop 이 마지막에 알린다.
+  branch=$(harness_branch)
+  if [ -n "$branch" ] && [ "$(cat "$HARNESS_ACK" 2>/dev/null)" = "$branch" ]; then
+    exit 0
+  fi
   printf '%s' "$harness_hit" | python3 -c '
 import json, sys
 files = sys.stdin.read().split()
@@ -234,12 +279,14 @@ reason = (
     "이 파일들은 TDD 게이트·래칫·훅 스크립트라서 다른 검사에 걸리지 않습니다.\n"
     "면제 추가나 래칫 하향으로 지적을 없애는 것이 아닌지 확인하세요."
 )
+if sys.argv[1]:
+    reason += "\n(승인하면 " + sys.argv[1] + " 브랜치에서는 게이트 수정을 다시 묻지 않습니다.)"
 print(json.dumps({"hookSpecificOutput": {
     "hookEventName": "PreToolUse",
     "permissionDecision": "ask",
     "permissionDecisionReason": reason,
 }}))
-' 2>/dev/null || exit 0
+' "$branch" 2>/dev/null || exit 0
   exit 0
 fi
 
