@@ -21,7 +21,8 @@ Spreadsheet Viewer 저장소에서 쓰는 작업 도구 — 훅 · 스킬 · 에
 | 훅 | 시점 | 하는 일 |
 |---|---|---|
 | `session-brief.sh` | `SessionStart` | 하네스가 살아 있는지 보고한다. 마커 깨짐·유령 표시·래칫 밀림·미커버 파일 수·`main` 브랜치 |
-| `tdd-guard.sh` | `PreToolUse` (쓰기 툴 전체) | 본체 `.kt` **신규 생성**에 테스트를 요구한다. 게이트 자신을 고치려 하면 `ask` |
+| `tdd-guard.sh` | `PreToolUse` (쓰기 툴 전체) | 본체 `.kt` **신규 생성**에 테스트를 요구한다. 게이트 자신을 고치려 하면 브랜치마다 한 번 `ask` |
+| `tdd-guard.sh ack` | `PostToolUse` (쓰기 툴 전체) | 승인된 게이트 수정이 실제로 돈 뒤 승인 표시를 남긴다 |
 | `branch-guard.sh` | `PreToolUse` (쓰기 툴 전체) | `main`/`master` 에서 소스를 고치려 하면 한 번 `ask` |
 | `safety-guard.sh` | `PreToolUse` (Bash · Read · Grep · 쓰기 툴 · MCP) | 되돌릴 수 없는 실수를 `deny` 한다: 위험한 대상의 `rm -r` · `.env` 읽기 · 키 리터럴 · 비밀을 찍는 명령 · `git push --force` |
 | `pre-commit-check.sh` | `PreToolUse(Bash)` | 커밋 앞에서 키로 보이는 문자열을 찾고, `scripts/check.sh` 를 돌린다 |
@@ -72,6 +73,7 @@ Spreadsheet Viewer 저장소에서 쓰는 작업 도구 — 훅 · 스킬 · 에
 | `.claude/.cycle-state` | 사이클 훅 셋 | 무시 |
 | `.claude/.sandbox-mark` | `sandbox-log.sh` | 무시 |
 | `.claude/.branch-ack` | `branch-guard` | 무시 |
+| `.claude/.harness-ack` | `tdd-guard ack` | 무시 |
 
 `.cycle-state` 가 **없으면 사이클 훅들은 아무 일도 하지 않는다.** 평소 세션에 영향이 없어야 한다.
 

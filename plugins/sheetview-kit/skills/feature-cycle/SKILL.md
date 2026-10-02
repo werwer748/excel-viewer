@@ -33,7 +33,7 @@ printf 'branch=%s\nround=0\nmax_rounds=3\nreview=pending\nverify=pending\nharnes
 
 - `Write`·`Edit` 뿐 아니라 **`touch`·`cp`·`mv`·`dd`·리다이렉션·`tee`·MCP 쓰기 툴**도 같이 막힌다. 툴을 바꿔 우회하려 하지 마라.
 - 막히면 답은 **로직을 순수 클래스로 빼내 테스트하는 것**이다. 면제 목록에 추가하는 것이 아니다.
-- `.claude/tdd-exempt.txt` · `tdd-baseline` · 훅 스크립트 · `check.sh` 를 고치려 하면 **ask** 가 뜬다. 이건 게이트 자신이기 때문이다. 그때 `tdd-guard.sh` 가 상태에 `harness_touched=yes` 를 **스스로** 남긴다 — 직접 적지 않는다. 마지막 보고에 왜 고쳤는지 적는다.
+- `.claude/tdd-exempt.txt` · `tdd-baseline` · 훅 스크립트 · `check.sh` 를 고치려 하면 **ask** 가 뜬다. 이건 게이트 자신이기 때문이다. 한 번 승인하면 그 브랜치에서는 다시 뜨지 않는다 — 그래도 `tdd-guard.sh` 는 고칠 때마다 상태에 `harness_touched=yes` 를 **스스로** 남긴다. 직접 적지 않는다. 마지막 보고에 왜 고쳤는지 적는다.
 
 새 테스트를 만들면 `tdd-red.sh` 가 그 테스트만 돌려 **실패(red)하는지** 확인한다. 처음부터 통과하면 그 테스트는 아무것도 지키지 않는다.
 

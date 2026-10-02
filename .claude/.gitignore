@@ -2,3 +2,4 @@
 .cycle-state
 .sandbox-mark
 .branch-ack
+.harness-ack
