@@ -36,6 +36,25 @@ print("yes" if re.search(pat, cmd) else "")
 # 이 저장소가 아니면(마커 없음) 막을 근거가 없다 — 플러그인은 다른 프로젝트에도 설치된다.
 . "$(dirname -- "$0")/_common.sh" 2>/dev/null || exit 0
 PROJECT_DIR=$(sheetview_project_dir) || exit 0
+
+# 키가 커밋에 실리면 공개 저장소에 그대로 올라가고, 지워도 이력에 남는다. staged diff 만 보지
+# 않는다 — `git add -A && git commit` 은 Bash 호출 하나라서 이 훅이 돌 때 인덱스가 아직 비어 있다.
+# 그래서 인덱스와, 작업 트리의 무시되지 않은 파일을 둘 다 본다(.env 는 gitignore 라 대상이 아니다).
+# 파일 이름만 낸다 — 이 출력은 대화에 실리므로 값을 되읊으면 여기가 유출 경로가 된다.
+leaks=$(cd "$PROJECT_DIR" && {
+  git grep --cached -lE -e "$SHEETVIEW_SECRET_RE"
+  git grep --untracked -lE -e "$SHEETVIEW_SECRET_RE"
+} 2>/dev/null | sort -u)
+if [ -n "$leaks" ]; then
+  {
+    echo "키로 보이는 문자열이 커밋에 실릴 파일에 있어서 커밋을 막았습니다 (값은 여기에 적지 않습니다):"
+    printf '%s\n' "$leaks" | sed 's/^/  /'
+    echo "값을 지우고 환경변수나 CI 시크릿으로 옮긴 뒤 다시 커밋하세요."
+    echo "이미 푸시된 적이 있는 값이면 지우는 것으로는 부족합니다 — 키를 폐기하고 새로 발급하세요."
+  } >&2
+  exit 2
+fi
+
 CHECK="$PROJECT_DIR/scripts/check.sh"
 
 # 검사할 것이 없는 상태라면 커밋을 막을 근거도 없다.

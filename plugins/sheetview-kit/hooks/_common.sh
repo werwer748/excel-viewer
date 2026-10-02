@@ -11,6 +11,12 @@
 SHEETVIEW_SRC_ROOT="src/main/kotlin/dev/hugo/sheetview"
 SHEETVIEW_TEST_ROOT="src/test/kotlin"
 
+# 키로 보이는 문자열. safety-guard.sh(python re)와 pre-commit-check.sh(git grep -E)가 같이 쓴다 —
+# 그래서 둘 다 읽는 ERE 로만 적는다(\b · \d · lookahead 를 쓰지 않는다). 길이 하한은 문서의
+# `sk-ant-...` 같은 자리표시를 키로 보지 않게 한다. 순서대로 Anthropic(API 키 · OAuth 토큰) ·
+# GitHub · AWS · 개인키 블록 · JetBrains Marketplace 토큰이다.
+SHEETVIEW_SECRET_RE='sk-ant-[A-Za-z0-9]+-[A-Za-z0-9_-]{20,}|gh[pousr]_[A-Za-z0-9]{36,}|github_pat_[A-Za-z0-9_]{40,}|AKIA[0-9A-Z]{16}|-----BEGIN [A-Z ]*PRIVATE KEY-----|perm:[A-Za-z0-9+/=_-]{4,}\.[A-Za-z0-9+/=_-]{4,}\.[A-Za-z0-9+/=_-]{10,}'
+
 # 마커: gradlew 와 이 플러그인의 소스 루트가 함께 있는 디렉터리.
 sheetview_is_project() {
   [ -f "$1/gradlew" ] && [ -d "$1/$SHEETVIEW_SRC_ROOT" ]

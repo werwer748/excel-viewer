@@ -157,6 +157,13 @@ pre_bash = [e for e in hooks.get("PreToolUse", []) if matches(e.get("matcher", "
 check(any("agent-guard.sh" in scripts_of(e) for e in pre_bash),
       "agent-guard.sh 가 PreToolUse(Bash) 에 걸려 있다")
 
+# 3-1. safety-guard 는 Bash 만이 아니라 읽기·쓰기 툴과 MCP 에도 걸려야 한다.
+#      Read 가 빠지면 .env 가 그대로 열리고, Write 가 빠지면 키 리터럴이 파일에 적힌다.
+for tool in ("Bash", "Read", "Grep", "Write", "Edit", "mcp__webstorm__get_file_text_by_path"):
+    entries = [e for e in hooks.get("PreToolUse", []) if matches(e.get("matcher", ""), tool)]
+    check(any("safety-guard.sh" in scripts_of(e) for e in entries),
+          f"safety-guard.sh 가 PreToolUse({tool}) 에 걸려 있다")
+
 # 4. 배선된 스크립트가 전부 실제로 있다.
 for event in sorted(hooks):
     for e in hooks[event]:
@@ -723,6 +730,135 @@ ag_case "다른 에이전트도 대상이 아니다"       allow Explore   'rm -
 ag_case "깨진 따옴표는 판단 불가 -> 통과"     allow $REVIEWER 'grep "unclosed'
 
 # ─────────────────────────────────────────────────────────────────────────────
+echo "safety-guard.sh — 위험한 삭제 · .env · 키 노출 · 강제 푸시"
+
+# agent_type 을 보지 않는다 — 메인 세션과 모든 에이전트가 대상이다. 합성 프로젝트 안에서 돌린다:
+# rm 대상이 "프로젝트 안인가 밖인가"가 판정의 절반이라 루트와 cwd 가 정해져 있어야 한다.
+SG=$(synth_project)
+
+# 가짜 키는 **실행 중에 조립한다.** 리터럴로 적으면 이 훅과 커밋 앞 키 스캔이 이 파일 자신을 막는다.
+FAKE_KEY="sk-ant-api03-$(printf '%040d' 0)"
+
+sgpay() {   # <tool_name> <필드> <값> [<필드> <값> …]
+  python3 -c 'import json,sys
+a=sys.argv[1:]
+print(json.dumps({"tool_name":a[1],"cwd":a[0],"tool_input":dict(zip(a[2::2],a[3::2]))}))' "$SG" "$@"
+}
+sg_run() {   # <payload> [<돌릴 디렉터리>]
+  printf '%s' "$1" |
+    (cd "${2:-$SG}" && CLAUDE_PROJECT_DIR="${2:-$SG}" sh "$PLUGIN_DIR/hooks/safety-guard.sh" 2>/dev/null)
+}
+sg_case() {
+  desc=$1; want=$2; body=$3
+  out=$(sg_run "$body")
+  case "$out" in *'"deny"'*) got=deny ;; *) got=allow ;; esac
+  if [ "$got" = "$want" ]; then pass=$((pass + 1)); printf '  ok    %-44s %s\n' "$desc" "$got"
+  else fail=$((fail + 1)); printf '  FAIL  %-44s (기대 %s, 실제 %s)\n' "$desc" "$want" "$got"; fi
+}
+sg_bash() { sg_case "$1" "$2" "$(sgpay Bash command "$3")"; }
+
+# ── 재귀 삭제: 위험한 대상만 막는다 ──
+sg_bash "rm -rf /"                            deny  'rm -rf /'
+sg_bash "rm -rf ~"                            deny  'rm -rf ~'
+sg_bash "rm -rf ~/x (프로젝트 밖)"            deny  'rm -rf ~/x'
+sg_bash "rm -fr . (프로젝트 루트)"            deny  'rm -fr .'
+sg_bash "rm -rf .. (루트의 상위)"             deny  'rm -rf ..'
+sg_bash "절대경로로 적은 프로젝트 루트"       deny  "rm -rf $SG"
+sg_bash "rm -rf .git"                         deny  'rm -rf .git'
+sg_bash "rm -rf * (루트에서의 맨 글로브)"     deny  'rm -rf *'
+sg_bash "rm -r --recursive 긴 옵션"           deny  'rm --recursive --force /usr/local'
+sg_bash "sudo rm -rf /usr"                    deny  'sudo rm -rf /usr'
+sg_bash "bash -c 안의 rm -rf /"               deny  'bash -c "rm -rf /"'
+sg_bash "cd / 뒤의 상대경로"                  deny  'cd / && rm -rf usr'
+sg_bash "여러 대상 중 하나만 위험해도"        deny  'rm -rf build /usr/local'
+sg_bash "rm -rf build 는 산출물이다"          allow 'rm -rf build'
+sg_bash "rm -rf build/* (하위에서의 글로브)"  allow 'rm -rf build/*'
+sg_bash "절대경로로 적은 프로젝트 안"         allow "rm -rf $SG/build/tmp"
+sg_bash "rm -rf /tmp/x 는 임시 경로다"        allow 'rm -rf /tmp/sheetview-x'
+sg_bash "변수가 든 대상은 판단 불가 -> 통과"  allow 'rm -rf "$D"'
+sg_bash "재귀가 아닌 rm"                      allow 'rm -f a.txt'
+sg_bash "인자 속 글자는 명령이 아니다"        allow 'grep -rn "rm -rf /" README.md'
+
+# ── 강제 푸시: --force-with-lease 는 남의 커밋을 덮지 않으므로 통과시킨다 ──
+sg_bash "git push --force"                    deny  'git push --force'
+sg_bash "git push -f origin x"                deny  'git push -f origin x'
+sg_bash "git -C . push -fu origin x"          deny  'git -C . push -fu origin x'
+sg_bash "+refspec 도 강제 푸시다"             deny  'git push origin +main'
+sg_bash "git add && git push --force"         deny  'git add -A && git push --force origin x'
+sg_bash "git push"                            allow 'git push'
+sg_bash "git push --force-with-lease"         allow 'git push --force-with-lease origin x'
+sg_bash "git push -u origin x"                allow 'git push -u origin x'
+sg_bash "git commit -m 속의 --force"          allow 'git commit -m "push --force 를 막는다"'
+
+# ── .env: 읽는 툴과 읽는 명령만 막는다 ──
+sg_case "Read .env"                           deny  "$(sgpay Read file_path "$SG/.env")"
+sg_case "Read .env.local"                     deny  "$(sgpay Read file_path .env.local)"
+sg_case "Grep path=.env"                      deny  "$(sgpay Grep pattern TOKEN path .env)"
+sg_case "Grep glob=.env*"                     deny  "$(sgpay Grep pattern TOKEN glob '.env*')"
+sg_case "MCP 로 .env 열기"                    deny  "$(sgpay mcp__webstorm__get_file_text_by_path pathInProject .env)"
+sg_bash "cat .env"                            deny  'cat .env'
+sg_bash "source .env"                         deny  'set -a; . ./.env; set +a'
+sg_bash "git add -f .env"                     deny  'git add -f .env'
+sg_bash "cp .env 밖으로"                      deny  'cp .env /tmp/sheetview-x'
+sg_bash "입력 리다이렉션으로 읽기"            deny  'wc -l < .env'
+sg_bash "--env-file=.env"                     deny  'docker run --env-file=.env img'
+sg_case "Read .env.example 은 양식이다"       allow "$(sgpay Read file_path .env.example)"
+sg_case "이름이 비슷한 소스 파일"             allow "$(sgpay Read file_path src/main/environment.kt)"
+sg_case "Grep 으로 .gitignore 에서 찾기"      allow "$(sgpay Grep pattern '\.env' path .gitignore)"
+sg_case "Write .env 는 읽기가 아니다"         allow "$(sgpay Write file_path .env content 'CLAUDE_CODE_OAUTH_TOKEN=')"
+sg_bash "ls -la .env"                         allow 'ls -la .env'
+sg_bash "[ -f .env ]"                         allow '[ -f .env ] && echo yes'
+sg_bash "문서화된 흐름: gh secret set -f"     allow 'gh secret set -f .env --repo werwer748/excel-viewer'
+sg_bash "cp .env.example .env"                allow 'cp .env.example .env'
+sg_bash "echo .env >> .gitignore"             allow 'echo .env >> .gitignore'
+sg_bash "git check-ignore .env"               allow 'git check-ignore -v .env'
+
+# ── 비밀을 대화에 찍는 명령 ──
+sg_bash "printenv (전부)"                     deny  'printenv'
+sg_bash "env (전부)"                          deny  'env | sort'
+sg_bash "printenv GH_TOKEN"                   deny  'printenv GH_TOKEN'
+sg_bash "echo \$…TOKEN"                       deny  'echo $CLAUDE_CODE_OAUTH_TOKEN'
+sg_bash "echo \${…API_KEY}"                   deny  'echo "key=${ANTHROPIC_API_KEY}"'
+sg_bash "printenv JAVA_HOME"                  allow 'printenv JAVA_HOME'
+sg_bash "env 는 래퍼로도 쓴다"                allow 'env FOO=1 ./gradlew test'
+sg_bash "echo \$HOME"                         allow 'echo $HOME'
+sg_bash "쓰는 것은 찍는 것이 아니다"          allow 'curl -sH "Authorization: Bearer $GH_TOKEN" https://api.github.com/user'
+
+# ── 키 리터럴 ──
+sg_case "Write 내용에 키"                     deny  "$(sgpay Write file_path src/main/Config.kt content "val key = \"$FAKE_KEY\"")"
+sg_case "Edit new_string 에 키"               deny  "$(sgpay Edit file_path README.md old_string x new_string "$FAKE_KEY")"
+sg_bash "Bash 명령에 키"                      deny  "gh pr comment 1 --body $FAKE_KEY"
+sg_case "MultiEdit 의 중첩된 값에 키"         deny  "$(python3 -c 'import json,sys
+print(json.dumps({"tool_name":"MultiEdit","cwd":sys.argv[1],"tool_input":{"file_path":"README.md",
+  "edits":[{"old_string":"x","new_string":sys.argv[2]}]}}))' "$SG" "$FAKE_KEY")"
+sg_case "키를 지우는 Edit 는 통과해야 한다"   allow "$(sgpay Edit file_path README.md old_string "$FAKE_KEY" new_string '<토큰>')"
+sg_case "자리표시는 키가 아니다"              allow "$(sgpay Write file_path README.md content 'ANTHROPIC_API_KEY=sk-ant-...')"
+
+# ── 판단 불가는 통과 ──
+sg_case "깨진 JSON"                           allow 'not json at all'
+sg_case "빈 payload"                          allow ''
+sg_case "tool_input 이 없다"                  allow '{"tool_name":"Bash"}'
+sg_bash "깨진 따옴표는 판단 불가 -> 통과"     allow 'rm -rf "/'
+
+# 마커가 없으면 이 저장소가 아니다 — 다른 훅들처럼 조용히 통과한다.
+NM=$(mktemp -d)
+case "$(sg_run "$(sgpay Bash command 'rm -rf /')" "$NM")" in
+  *'"deny"'*) bad "마커 없는 디렉터리에서 막았다" ;;
+  *) ok "마커 없는 디렉터리에서는 통과" ;;
+esac
+rm -rf "$NM"
+
+# 거절 사유는 대화에 그대로 실린다. 키 값을 되읊으면 훅이 유출 경로가 된다.
+out=$(sg_run "$(sgpay Bash command "echo $FAKE_KEY > src/main/x.txt")")
+case "$out" in
+  *"$FAKE_KEY"*) bad "거절 사유에 키 값이 실렸다" ;;
+  *'"deny"'*) ok "거절 사유에 키 값을 싣지 않는다" ;;
+  *) bad "키가 든 명령을 막지 않았다" ;;
+esac
+
+rm -rf "$SG"
+
+# ─────────────────────────────────────────────────────────────────────────────
 echo "branch-guard.sh — main 에서 소스를 고치면 한 번 묻는다"
 
 BR=$(mktemp -d)
@@ -805,6 +941,43 @@ pc_case "description 에만 있는 경우 -> 안 돈다" 0 \
   '{"tool_name":"Bash","tool_input":{"command":"ls","description":"git commit 준비"}}'
 
 rm -rf "$PC"
+
+echo "pre-commit-check.sh — 커밋에 실릴 파일에 키가 있는가"
+
+# 이번에는 check.sh 가 **항상 통과**한다. 그래야 exit 2 가 키 스캔에서 나온 것임이 구별된다.
+PK=$(synth_project)
+mkdir -p "$PK/scripts"
+printf '#!/bin/sh\nexit 0\n' > "$PK/scripts/check.sh"
+chmod +x "$PK/scripts/check.sh"
+printf '.env\n' > "$PK/.gitignore"
+( cd "$PK" && git init -q -b main . && git config user.email t@t && git config user.name t &&
+  git add -A && git commit -q -m init ) >/dev/null 2>&1
+
+# `git add -A && git commit` 은 Bash 호출 하나다 — 훅이 돌 때 인덱스는 아직 비어 있다.
+pk_case() {
+  desc=$1; want=$2
+  out=$(printf '%s' "$(bashpay 'git add -A && git commit -m x')" |
+    (cd "$PK" && CLAUDE_PROJECT_DIR="$PK" sh "$PLUGIN_DIR/hooks/pre-commit-check.sh" 2>&1))
+  got=$?
+  if [ "$got" = "$want" ]; then pass=$((pass + 1)); printf '  ok    %-44s exit %s\n' "$desc" "$got"
+  else fail=$((fail + 1)); printf '  FAIL  %-44s (기대 %s, 실제 %s)\n' "$desc" "$want" "$got"; fi
+}
+
+pk_case "키가 없으면 통과" 0
+printf 'CLAUDE_CODE_OAUTH_TOKEN=%s\n' "$FAKE_KEY" > "$PK/.env"
+pk_case "gitignore 된 .env 는 커밋 대상이 아니다" 0
+printf 'val key = "%s"\n' "$FAKE_KEY" > "$PK/Leak.kt"
+pk_case "미추적 파일의 키 -> 차단" 2
+case "$out" in
+  *"$FAKE_KEY"*) bad "차단 메시지에 키 값이 실렸다" ;;
+  *Leak.kt*) ok "차단 메시지는 파일 이름만 말한다" ;;
+  *) bad "차단 메시지에 파일 이름이 없다" ;;
+esac
+( cd "$PK" && git add Leak.kt ) >/dev/null 2>&1
+printf 'val key = ""\n' > "$PK/Leak.kt"
+pk_case "작업 트리에서 지워도 인덱스에 남은 키 -> 차단" 2
+
+rm -rf "$PK"
 
 printf '\n%s개 통과 · %s개 실패\n' "$pass" "$fail"
 [ "$fail" = 0 ] || exit 1
