@@ -49,6 +49,7 @@ Spreadsheet Viewer 저장소에서 쓰는 작업 도구 — 훅 · 스킬 · 에
 |---|---|
 | `sheet-reviewer` | 코드 리뷰. `runIde` 를 포함해 쓰기 명령이 전부 거절된다 |
 | `sandbox-runner` | 샌드박스 기동. `runIde` 는 허용되고 쓰기만 거절된다 |
+| `pr-reviewer` | PR 을 다섯 기준 100점 만점으로 채점. CI 의 `pr-review.yml` 이 `--agent` 로 부른다. Edit·Write 는 없지만 `agent-guard` 대상은 아직 아니다 |
 
 ## 스크립트
 
