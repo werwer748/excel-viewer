@@ -62,6 +62,11 @@ gate_case "기준이 하나 빠지면 미실행"       0 "리뷰를 돌리지 �
   '{"scores":{"security":30,"scope":20,"breaking_change":20,"test_coverage":15},"report":"x"}'
 gate_case "점수가 숫자가 아니면 미실행"     0 "리뷰를 돌리지 못했습니다" \
   '{"scores":{"security":"30","scope":20,"breaking_change":20,"test_coverage":15,"migration":15},"report":"x"}'
+# bool 은 int 의 하위 타입이다. isinstance 로 거르면 true 가 1점으로 채점된다.
+gate_case "bool 점수는 미실행"              0 "리뷰를 돌리지 못했습니다" \
+  '{"scores":{"security":true,"scope":20,"breaking_change":20,"test_coverage":15,"migration":15},"report":"x"}'
+gate_case "실수 점수는 미실행"              0 "리뷰를 돌리지 못했습니다" \
+  '{"scores":{"security":30.0,"scope":20,"breaking_change":20,"test_coverage":15,"migration":15},"report":"x"}'
 
 printf '\n%s개 통과 · %s개 실패\n' "$pass" "$fail"
 [ "$fail" = 0 ] || exit 1
